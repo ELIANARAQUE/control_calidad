@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Estacion de trabajo - QA Monitor</title>
+  <style>
+    body { font-family: sans-serif; background: #111; color: #eee; text-align: center; padding: 2rem; }
+    video { width: 480px; max-width: 90vw; border-radius: 8px; background: #000; }
+    #estado { margin-top: 1rem; font-size: 0.9rem; color: #9ad; }
+    input, button { padding: 0.5rem; font-size: 1rem; margin: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h2>Panel de estacion</h2>
+  <div>
+    <input id="nombreEmpleado" placeholder="Nombre del empleado" />
+    <button id="btnIniciar">Iniciar monitoreo</button>
+  </div>
+  <video id="video" autoplay playsinline muted></video>
+  <div id="estado">Sin conexion</div>
+
+  <script src="client.js"></script>
+</body>
+</html>

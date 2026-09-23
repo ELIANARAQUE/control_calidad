@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel de Supervisor - QA Monitor</title>
+  <style>
+    body { font-family: sans-serif; background: #0d0d0d; color: #eee; padding: 1.5rem; }
+    h2 { margin-bottom: 0.25rem; }
+    #estado { color: #9ad; margin-bottom: 1rem; }
+    .evento { padding: 0.5rem 0.75rem; border-left: 4px solid #444; margin-bottom: 0.4rem; background: #1a1a1a; border-radius: 4px; }
+    .alerta_postura { border-left-color: #e74c3c; }
+    .transcripcion { border-left-color: #3498db; }
+    .conexion { border-left-color: #2ecc71; }
+    .desconexion { border-left-color: #999; }
+    .meta { font-size: 0.75rem; color: #888; }
+  </style>
+</head>
+<body>
+  <h2>Panel de Supervisor</h2>
+  <div id="estado">Conectando...</div>
+  <div id="eventos"></div>
+
+  <script src="client.js"></script>
+</body>
+</html>
