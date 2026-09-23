@@ -191,13 +191,18 @@ async function enviarVeredicto(estacionId, alertaId, veredicto, contenedorAccion
       body: JSON.stringify({ veredicto }),
     });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
-    contenedorAcciones.innerHTML = veredicto === "confirmada" ? "✔ Marcada como real" : "✘ Falsa alarma";
+
+    // Se guarda el veredicto EN el evento original (el que vive dentro de estaciones.get(id).eventos),
+    // no solo en el DOM: si no se guarda ahi, la proxima vez que se re-renderice el feed
+    // (por ejemplo al llegar cualquier otro evento nuevo) se reconstruye desde cero y
+    // "olvida" que ya se habia contestado, mostrando los botones de nuevo.
+    const estacion = estaciones.get(estacionId);
+    const eventoOriginal = estacion?.eventos.find((e) => e.alerta_id === alertaId);
+    if (eventoOriginal) eventoOriginal.veredicto = veredicto;
 
     contadores.pendientes = Math.max(0, contadores.pendientes - 1);
-    const estacion = estaciones.get(estacionId);
     if (estacion) estacion.pendientes = Math.max(0, estacion.pendientes - 1);
-    renderizarResumen();
-    renderizarLista();
+    renderizarTodo();
   } catch (err) {
     contenedorAcciones.textContent = "Error al guardar: " + err.message;
   }
@@ -224,18 +229,22 @@ function crearElementoEvento(evento, mostrarTagEstacion) {
     const acciones = document.createElement("div");
     acciones.className = "acciones";
 
-    const btnConfirmar = document.createElement("button");
-    btnConfirmar.textContent = "Fue real";
-    btnConfirmar.className = "btn-veredicto btn-confirmar";
-    btnConfirmar.onclick = () => enviarVeredicto(evento.estacion_id, evento.alerta_id, "confirmada", acciones);
+    if (evento.veredicto) {
+      acciones.innerHTML = evento.veredicto === "confirmada" ? "✔ Marcada como real" : "✘ Falsa alarma";
+    } else {
+      const btnConfirmar = document.createElement("button");
+      btnConfirmar.textContent = "Fue real";
+      btnConfirmar.className = "btn-veredicto btn-confirmar";
+      btnConfirmar.onclick = () => enviarVeredicto(evento.estacion_id, evento.alerta_id, "confirmada", acciones);
 
-    const btnDescartar = document.createElement("button");
-    btnDescartar.textContent = "Falsa alarma";
-    btnDescartar.className = "btn-veredicto btn-descartar";
-    btnDescartar.onclick = () => enviarVeredicto(evento.estacion_id, evento.alerta_id, "falsa_alarma", acciones);
+      const btnDescartar = document.createElement("button");
+      btnDescartar.textContent = "Falsa alarma";
+      btnDescartar.className = "btn-veredicto btn-descartar";
+      btnDescartar.onclick = () => enviarVeredicto(evento.estacion_id, evento.alerta_id, "falsa_alarma", acciones);
 
-    acciones.appendChild(btnConfirmar);
-    acciones.appendChild(btnDescartar);
+      acciones.appendChild(btnConfirmar);
+      acciones.appendChild(btnDescartar);
+    }
     div.querySelector(".cuerpo-evento").appendChild(acciones);
   }
 

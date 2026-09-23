@@ -14,6 +14,7 @@ const nombreActivo = document.getElementById("nombreActivo");
 const idEstacion = document.getElementById("idEstacion");
 
 const CLAVE_NOMBRE = "qamonitor.nombreEmpleado";
+const CLAVE_ESTACION = "qamonitor.estacionId";
 let pc = null;
 let stream = null;
 
@@ -72,6 +73,10 @@ async function iniciarMonitoreo(nombreEmpleado) {
         sdp: pc.localDescription.sdp,
         type: pc.localDescription.type,
         empleado_nombre: nombreEmpleado,
+        // Si ya hay un id de estacion guardado de una sesion anterior en este mismo equipo,
+        // se reutiliza para que el supervisor vea una sola estacion por puesto de trabajo
+        // en vez de una nueva cada vez que se reconecta (ej. tras cerrar y volver a abrir).
+        estacion_id: localStorage.getItem(CLAVE_ESTACION) || undefined,
       }),
     });
   } catch (err) {
@@ -88,6 +93,7 @@ async function iniciarMonitoreo(nombreEmpleado) {
 
   const datos = await respuesta.json();
   await pc.setRemoteDescription({ sdp: datos.sdp, type: datos.type });
+  localStorage.setItem(CLAVE_ESTACION, datos.estacion_id);
 
   nombreActivo.textContent = nombreEmpleado;
   idEstacion.textContent = datos.estacion_id;
