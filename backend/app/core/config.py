@@ -32,11 +32,11 @@ class Settings(BaseSettings):
     whisper_model_size: str = "small"  # tiny/base/small/medium segun VRAM disponible
     whisper_device: str = "cuda"
     whisper_compute_type: str = "int8_float16"  # cuantizacion para ahorrar VRAM
-    audio_chunk_maximo_segundos: float = 8.0  # tope duro: si la persona no para de hablar, igual se corta aqui
+    audio_chunk_maximo_segundos: float = 14.0  # tope duro: si la persona no para de hablar, igual se corta aqui
     audio_chunk_minimo_segundos: float = 0.6  # no vale la pena transcribir chunks mas cortos que esto
-    audio_silencio_para_cortar_ms: float = 500.0  # pausa de habla que se interpreta como fin de frase
+    audio_silencio_para_cortar_ms: float = 900.0  # pausa de habla que se interpreta como fin de frase (no una coma)
     audio_energia_minima: float = 0.01  # RMS minimo para mandar el chunk a Whisper (evita alucinar en silencio)
-    audio_silencio_rms: float = 0.008  # RMS por debajo del cual un frame cuenta como "silencio" para cortar
+    audio_silencio_rms: float = 0.006  # RMS por debajo del cual un frame cuenta como "silencio" para cortar
     whisper_no_speech_prob_maximo: float = 0.45  # descarta segmentos que el propio modelo considera poco fiables
 
     # --- Rutas ---

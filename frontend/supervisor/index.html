@@ -4,43 +4,65 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Panel de Supervisor</title>
-  <link rel="stylesheet" href="style.css?v=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
-  <header class="encabezado">
-    <div class="titulo">
-      <h1>Control de calidad</h1>
-      <span class="subtitulo">Monitoreo en vivo por estación</span>
-    </div>
-    <div class="estado" id="estado">
-      <span class="punto" id="punto"></span>
-      <span id="estadoTexto">Conectando…</span>
-    </div>
-  </header>
+  <div class="app">
+    <aside class="barra-lateral">
+      <div class="marca">
+        <span class="logo">CC</span>
+        <div>
+          <div class="marca-titulo">Control de calidad</div>
+          <div class="marca-estado">
+            <span class="punto" id="punto"></span>
+            <span id="estadoTexto">Conectando…</span>
+          </div>
+        </div>
+      </div>
 
-  <section class="resumen" id="resumen">
-    <div class="tarjeta-resumen">
-      <span class="valor" id="statEstaciones">0</span>
-      <span class="etiqueta">Estaciones activas</span>
-    </div>
-    <div class="tarjeta-resumen">
-      <span class="valor" id="statAlertas">0</span>
-      <span class="etiqueta">Alertas hoy</span>
-    </div>
-    <div class="tarjeta-resumen">
-      <span class="valor" id="statPendientes">0</span>
-      <span class="etiqueta">Sin revisar</span>
-    </div>
-    <div class="tarjeta-resumen">
-      <span class="valor" id="statTranscripciones">0</span>
-      <span class="etiqueta">Frases transcritas</span>
-    </div>
-  </section>
+      <div class="resumen-mini">
+        <div class="chip-stat">
+          <span class="chip-stat-valor" id="statEstaciones">0</span>
+          <span class="chip-stat-etiqueta">en vivo</span>
+        </div>
+        <div class="chip-stat urgente">
+          <span class="chip-stat-valor" id="statPendientes">0</span>
+          <span class="chip-stat-etiqueta">sin revisar</span>
+        </div>
+      </div>
 
-  <main class="grid-estaciones" id="grid"></main>
+      <div class="buscador">
+        <input id="buscador" type="text" placeholder="Buscar estación o empleado…" autocomplete="off" />
+      </div>
 
-  <p class="vacio oculto" id="vacio">Todavía no se ha conectado ninguna estación.</p>
+      <div class="lista-estaciones" id="listaEstaciones"></div>
+    </aside>
 
-  <script src="client.js?v=4"></script>
+    <main class="panel-detalle">
+      <header class="cabecera-detalle" id="cabeceraDetalle">
+        <div>
+          <h1 id="tituloDetalle">Todas las estaciones</h1>
+          <span class="subtitulo-detalle" id="subtituloDetalle">Actividad combinada, más reciente primero</span>
+        </div>
+        <div class="stats-detalle">
+          <div class="stat-detalle">
+            <span class="valor" id="statAlertas">0</span>
+            <span class="etiqueta">Alertas hoy</span>
+          </div>
+          <div class="stat-detalle">
+            <span class="valor" id="statTranscripciones">0</span>
+            <span class="etiqueta">Frases transcritas</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="feed" id="feed"></div>
+      <p class="vacio oculto" id="vacio">Todavía no se ha conectado ninguna estación.</p>
+    </main>
+  </div>
+
+  <script src="client.js?v=5"></script>
 </body>
 </html>
