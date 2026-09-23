@@ -1,7 +1,11 @@
 @echo off
-REM Empaqueta el cliente de escritorio como un unico .exe, para poder copiarlo a cada
-REM PC de empleado sin que necesiten tener Python instalado. Ver README.md para el
-REM flujo completo de instalacion en cada equipo.
+REM Genera UN SOLO .exe listo para llevar a cada PC (USB, descarga, etc.) sin ningun
+REM archivo aparte que copiar o editar despues: config.json queda incrustado dentro del
+REM .exe, y el programa se instala y configura solo la primera vez que se abre.
+REM
+REM IMPORTANTE: edita config.json con la IP real del servidor ANTES de correr esto --
+REM ese valor queda fijo dentro del .exe para todos los PCs a los que lo lleves. Si el
+REM servidor cambia de IP mas adelante, hay que volver a construir y redistribuir el .exe.
 
 where pyinstaller >nul 2>nul
 if errorlevel 1 (
@@ -9,18 +13,16 @@ if errorlevel 1 (
     pip install pyinstaller
 )
 
-REM config.json NO se empaqueta dentro del .exe a proposito: tiene que quedar como
-REM archivo editable junto al .exe, para poder poner la IP del servidor (y el nombre
-REM del empleado) por PC sin recompilar nada.
 pyinstaller --noconsole --onefile ^
+    --add-data "config.json;." ^
     --name ControlCalidadMonitor ^
     app.py
 
-if not exist dist\config.json copy config.json dist\config.json >nul
-
 echo.
-echo Listo: dist\ControlCalidadMonitor.exe (junto a dist\config.json)
-echo.
-echo Copia AMBOS archivos (el .exe y config.json) a cada PC, edita config.json con la IP
-echo real del servidor, y abre el .exe una vez -- el auto-arranque y el id de estacion
-echo se configuran solos, no hace falta ningun otro paso.
+echo Listo: dist\ControlCalidadMonitor.exe
+echo Es el UNICO archivo que hace falta llevar a cada PC. Al abrirlo la primera vez:
+echo   - se copia solo a una carpeta permanente del equipo (sigue funcionando aunque
+echo     despues saques la USB de donde lo abriste)
+echo   - se registra para abrir solo con Windows
+echo   - identifica el puesto usando el propio Windows, sin pasos manuales
+echo No hace falta instalar Python, copiar ningun otro archivo, ni editar nada en el PC.

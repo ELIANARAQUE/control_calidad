@@ -3,71 +3,78 @@
 Programa nativo que reemplaza el navegador: se abre solo, sin barra de direcciones ni
 controles, apuntando directo al panel web del empleado que ya sirve el backend. El
 empleado no tiene que "entrar a una app web" — el programa ya está mostrando su estación
-cuando enciende el PC. Instalarlo es, en la práctica, **copiar dos archivos y abrir uno
-una vez**: todo lo demás (auto-arranque, identidad del puesto) se configura solo.
+cuando enciende el PC.
+
+Se distribuye como **un solo archivo `.exe`**: se lleva en USB o se descarga, se abre una
+vez, y queda completamente instalado. Sin config que editar en el PC del empleado, sin
+pasos como administrador, sin script aparte que correr.
 
 ## Cómo funciona
 
-- `app.py` abre una ventana embebida (WebView2 en Windows) cargando `servidor_url` de
-  `config.json` — la misma página que hoy vive en
-  [../frontend/employee/index.html](../frontend/employee/index.html), servida por FastAPI.
-  No hay HTML duplicado: el programa es solo el "marco" nativo.
+- `app.py` abre una ventana embebida (WebView2 en Windows) cargando la página del
+  empleado que ya sirve el backend
+  ([../frontend/employee/index.html](../frontend/employee/index.html)) — no hay HTML
+  duplicado, el programa es solo el "marco" nativo.
 - Cerrar la ventana (la X) **no cierra el programa**, solo lo minimiza a la bandeja del
   sistema — así la transmisión de video/audio sigue activa aunque el empleado la oculte
   por error. Salir de verdad se hace desde el ícono de la bandeja → "Salir".
-- **Auto-arranque que se configura solo.** La primera vez que `app.py` corre, se registra
-  él mismo para abrir en el próximo inicio de sesión de Windows (ver
-  [instalar_autoarranque.py](instalar_autoarranque.py)) — no hay que correr ningún script
-  aparte a mano. Las siguientes veces no hace nada (no lo reescribe).
-- **Identidad del puesto = identidad del PC, no del navegador ni de ningún archivo copiable.**
-  Usa el `MachineGuid` que Windows ya genera por instalación (vive en el registro,
-  `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography`), así que **aunque copies la misma
-  carpeta o el mismo `.exe` a 15 PCs distintos, cada uno reporta con un id distinto
-  automáticamente** — no depende de ningún archivo que haya que borrar o regenerar a mano.
-  Ese id se manda como parámetro en la URL (`?estacion_id=...`) al panel del empleado, así
-  que el supervisor siempre ve la misma estación reconectando, nunca una nueva.
-- Opcionalmente, se puede fijar el nombre del empleado en `config.json`
-  (`"empleado_nombre": "Laura Gómez"`) para que el puesto arranque identificado sin que
-  nadie tenga que escribirlo — útil si cada PC es de un empleado fijo.
+- **Se instala solo al primer arranque.** Si detecta que se está ejecutando desde una
+  ubicación temporal (la USB, la carpeta de Descargas), se copia solo a una carpeta
+  permanente del perfil de Windows y se relanza desde ahí — así, aunque saques la USB
+  después, el programa (y su auto-arranque) siguen funcionando.
+- **Auto-arranque que se configura solo**, en ese mismo primer arranque: se registra para
+  abrir en el próximo inicio de sesión de Windows (ver
+  [instalar_autoarranque.py](instalar_autoarranque.py)). Las siguientes veces no hace
+  nada (no lo reescribe).
+- **Identidad del puesto = identidad del PC**, no de ningún archivo copiable. Usa el
+  `MachineGuid` que Windows ya genera por instalación (vive en el registro,
+  `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography`), así que **aunque lleves el mismo
+  `.exe` a 15 PCs distintos, cada uno reporta con un id distinto automáticamente** — no
+  depende de ningún archivo que haya que borrar o regenerar a mano.
+- La IP del servidor queda **incrustada dentro del `.exe`** al construirlo (ver abajo) —
+  no hay `config.json` externo que llevar ni editar por PC.
 
-## Instalación en cada puesto de trabajo
+## Cómo generar el `.exe` (una sola vez, en tu máquina)
 
-### Opción A — como `.exe` (recomendada, no requiere Python en el PC del empleado)
-
-1. En tu propia máquina (una sola vez), generar el ejecutable:
-   ```bash
+1. Editar [config.json](config.json) con la IP real del servidor:
+   ```json
+   { "servidor_url": "http://<ip-del-servidor>:8000/empleado/", "empleado_nombre": "" }
+   ```
+   (`empleado_nombre` puede dejarse fijo si el PC es de un empleado específico — el
+   programa arranca ya identificado sin que nadie escriba nada. Si varios empleados
+   rotan por el mismo equipo, se deja vacío `""` y lo escriben ellos.)
+2. ```bash
    cd desktop_client
    pip install -r requirements.txt
    build.bat
    ```
-   Esto deja `dist/ControlCalidadMonitor.exe` y `dist/config.json` listos.
-2. Editar `dist/config.json` con la IP real del servidor (y, opcional, el nombre del
-   empleado si el PC es fijo):
-   ```json
-   { "servidor_url": "http://<ip-del-servidor>:8000/empleado/", "empleado_nombre": "" }
-   ```
-3. Copiar **ambos archivos** (`ControlCalidadMonitor.exe` + `config.json`, en la misma
-   carpeta) al PC del empleado.
-4. Abrir `ControlCalidadMonitor.exe` una vez. Listo — ya quedó configurado el
-   auto-arranque y el id del puesto; no hace falta ningún otro paso ni ejecutar nada como
-   administrador.
+3. Listo: `dist/ControlCalidadMonitor.exe` es el único archivo que hace falta llevar a
+   cada puesto de trabajo.
 
-### Opción B — corriendo con Python (para desarrollo/pruebas)
+> Si el servidor cambia de IP más adelante, hay que repetir estos pasos y volver a
+> distribuir el `.exe` — la IP queda fija dentro del ejecutable, a propósito, para que no
+> haga falta ningún archivo de configuración aparte en los PCs de los empleados.
 
-1. Instalar Python 3.10+ en el equipo.
-2. Copiar la carpeta `desktop_client/` completa.
-3. Editar [config.json](config.json) con la IP del servidor.
-4. ```bash
-   cd desktop_client
-   pip install -r requirements.txt
-   python app.py
-   ```
-   El auto-arranque se configura solo en este primer arranque también.
+## Instalación en cada puesto de trabajo
 
-Para desinstalar el auto-arranque en cualquiera de las dos opciones:
-`python instalar_autoarranque.py --quitar` (o el `.bat` equivalente si no tienes Python,
-ver `instalar_autoarranque.py` para el contenido exacto que borrar de la carpeta de Inicio
-de Windows).
+Copiar `ControlCalidadMonitor.exe` (por USB, red compartida, o descarga) y abrirlo una
+vez. Eso es todo — no requiere Python instalado, no requiere permisos de administrador,
+no requiere ningún otro archivo.
+
+Para desinstalar el auto-arranque, borrar `ControlCalidadMonitor.bat` de la carpeta de
+Inicio de Windows (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`) — o, si
+tienes Python disponible, `python instalar_autoarranque.py --quitar`.
+
+## Desarrollo/pruebas (con Python, sin empaquetar)
+
+```bash
+cd desktop_client
+pip install -r requirements.txt
+python app.py
+```
+
+En este modo el programa lee `config.json` de esta misma carpeta (no incrustado) y no
+hace la auto-instalación a una carpeta permanente — solo aplica al `.exe` empaquetado.
 
 ## Notas importantes
 
@@ -83,3 +90,6 @@ de Windows).
   herramientas de "clonado" de imágenes de disco (Sysprep, por ejemplo) lo regeneran a
   propósito para evitar que dos PCs clonados compartan identidad — eso es lo correcto
   para este caso también.
+- Antivirus/SmartScreen pueden advertir la primera vez que se abre un `.exe` sin firmar
+  descargado o traído de fuera — es normal para ejecutables sin certificado de firma de
+  código; firmar el binario es un paso aparte si se quiere evitar ese aviso.
