@@ -7,3 +7,6 @@ models/*.pt
 models/*.onnx
 server.log
 desktop_client/estacion_id.txt
+desktop_client/build/
+desktop_client/dist/
+desktop_client/*.spec

@@ -13,8 +13,14 @@ if errorlevel 1 (
     pip install pyinstaller
 )
 
+REM --collect-all pystray: pystray elige su backend (win32/mac/linux) de forma dinamica
+REM en tiempo de ejecucion, asi que el analizador estatico de PyInstaller no lo detecta y
+REM lo deja fuera del .exe por defecto -- causaba "ModuleNotFoundError: No module named
+REM 'pystray'" al abrir el .exe en otro PC (donde no hay un pystray instalado aparte que
+REM lo tape). Con esta bandera se empaqueta completo, sin depender de que lo detecte solo.
 pyinstaller --noconsole --onefile ^
     --add-data "config.json;." ^
+    --collect-all pystray ^
     --name ControlCalidadMonitor ^
     app.py
 
