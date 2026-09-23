@@ -8,7 +8,7 @@ de cuadros/chunks para no saturar la VRAM.
 ## Estructura
 
 ```
-qa-monitor/
+ControlCalidad/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                  # arranque FastAPI, monta rutas y estaticos
@@ -25,8 +25,9 @@ qa-monitor/
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/
-│   ├── employee/                    # captura getUserMedia + WebRTC (cliente liviano)
+│   ├── employee/                    # panel web del empleado (getUserMedia + WebRTC)
 │   └── supervisor/                  # panel en vivo vía WebSocket
+├── desktop_client/                  # programa nativo que envuelve frontend/employee (ver su README)
 ├── models/                          # pesos de YOLO (.pt) van aquí
 └── recordings/                      # opcional, para evidencias grabadas
 ```
@@ -63,7 +64,7 @@ qa-monitor/
 ## Instalación
 
 ```bash
-cd qa-monitor/backend
+cd backend
 python -m venv .venv
 .venv\Scripts\activate        # Windows
 pip install -r requirements.txt
@@ -78,11 +79,13 @@ copy .env.example .env        # y ajustar según tu GPU/VRAM
 ## Ejecución
 
 ```bash
-cd qa-monitor/backend
+cd backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-- Empleados abren: `http://<ip-del-servidor>:8000/empleado/`
+- Empleados: en vez de abrir el navegador, ejecutan el [cliente de escritorio](desktop_client/README.md),
+  que se instala una vez y arranca solo con Windows apuntando a `http://<ip-del-servidor>:8000/empleado/`.
+  (Para pruebas rápidas o si prefieres el navegador, esa misma URL también funciona directo.)
 - Supervisor abre: `http://<ip-del-servidor>:8000/supervisor/`
 
 ## Cambios recomendados antes de producción

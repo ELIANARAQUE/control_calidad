@@ -1,0 +1,6 @@
+{
+  "servidor_url": "http://192.168.1.10:8000/empleado/",
+  "titulo_ventana": "Monitor de estación",
+  "ancho": 420,
+  "alto": 640
+}

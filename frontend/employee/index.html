@@ -2,22 +2,42 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Estacion de trabajo - QA Monitor</title>
-  <style>
-    body { font-family: sans-serif; background: #111; color: #eee; text-align: center; padding: 2rem; }
-    video { width: 480px; max-width: 90vw; border-radius: 8px; background: #000; }
-    #estado { margin-top: 1rem; font-size: 0.9rem; color: #9ad; }
-    input, button { padding: 0.5rem; font-size: 1rem; margin: 0.5rem; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Estación de trabajo</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h2>Panel de estacion</h2>
-  <div>
-    <input id="nombreEmpleado" placeholder="Nombre del empleado" />
-    <button id="btnIniciar">Iniciar monitoreo</button>
-  </div>
-  <video id="video" autoplay playsinline muted></video>
-  <div id="estado">Sin conexion</div>
+  <main class="tarjeta">
+    <header class="encabezado">
+      <span class="punto" id="punto"></span>
+      <h1>Monitor de estación</h1>
+    </header>
+
+    <p class="subtitulo" id="subtitulo">Preparando la conexión con el servidor…</p>
+
+    <section class="config" id="config">
+      <label for="nombreEmpleado">Nombre del empleado</label>
+      <input id="nombreEmpleado" type="text" placeholder="Ej. Laura Gómez" autocomplete="off" />
+      <button id="btnIniciar" class="boton">Iniciar sesión de monitoreo</button>
+    </section>
+
+    <section class="activo oculto" id="seccionActivo">
+      <div class="fila">
+        <span class="etiqueta">Empleado</span>
+        <span class="valor" id="nombreActivo">—</span>
+      </div>
+      <div class="fila">
+        <span class="etiqueta">Estación</span>
+        <span class="valor" id="idEstacion">—</span>
+      </div>
+      <video id="video" autoplay playsinline muted class="vista-previa"></video>
+      <button id="btnDetener" class="boton boton-secundario">Finalizar sesión</button>
+    </section>
+
+    <footer class="pie">
+      Este equipo transmite video y audio de forma cifrada al servidor local de control de calidad.
+    </footer>
+  </main>
 
   <script src="client.js"></script>
 </body>
