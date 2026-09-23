@@ -95,7 +95,12 @@ class LimitadorFPS:
 def _ancho_hombros(keypoints: np.ndarray, confianzas: np.ndarray, confianza_minima: float) -> float | None:
     """Distancia en pixeles entre hombros: sirve como referencia de escala de la persona
     (mas cerca de la camara = hombros mas separados en pixeles = umbral de movimiento mayor).
+
+    Puede no haber keypoints en absoluto para esta persona en este frame (ej. YOLO detecto
+    la caja pero no pudo estimar la pose), de ahi el chequeo de longitud antes de indexar.
     """
+    if len(confianzas) <= max(HOMBRO_IZQ, HOMBRO_DER) or len(keypoints) <= max(HOMBRO_IZQ, HOMBRO_DER):
+        return None
     if confianzas[HOMBRO_IZQ] < confianza_minima or confianzas[HOMBRO_DER] < confianza_minima:
         return None
     ancho = np.linalg.norm(keypoints[HOMBRO_IZQ] - keypoints[HOMBRO_DER])

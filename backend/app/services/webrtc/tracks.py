@@ -10,6 +10,7 @@ import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
+import av
 import numpy as np
 
 from app.core.config import settings
@@ -47,31 +48,38 @@ async def consumir_video(track, estacion_id: str) -> None:
         if not limitador.debe_procesar_ahora():
             continue  # se descarta el frame: mantiene la VRAM/GPU libre
 
-        frame_bgr = frame.to_ndarray(format="bgr24")
+        try:
+            frame_bgr = frame.to_ndarray(format="bgr24")
 
-        # La inferencia YOLO es bloqueante (CPU/GPU-bound) -> se corre en thread aparte
-        resultado = await loop.run_in_executor(_executor, detector.procesar_frame, frame_bgr)
+            # La inferencia YOLO es bloqueante (CPU/GPU-bound) -> se corre en thread aparte
+            resultado = await loop.run_in_executor(_executor, detector.procesar_frame, frame_bgr)
 
-        if resultado["num_personas"] == 0:
-            historial.clear()
-            continue
+            if resultado["num_personas"] == 0:
+                historial.clear()
+                continue
 
-        historial.append((resultado["keypoints"][0], resultado["confianzas"][0]))
+            historial.append((resultado["keypoints"][0], resultado["confianzas"][0]))
 
-        ahora = time.monotonic()
-        cooldown_cumplido = (ahora - ultimo_ts_alerta) >= settings.yolo_alerta_cooldown_segundos
-        if cooldown_cumplido and detectar_movimiento_por_ventana(list(historial)):
-            ultimo_ts_alerta = ahora
-            historial.clear()  # evita que la misma racha de movimiento dispare dos alertas seguidas
+            ahora = time.monotonic()
+            cooldown_cumplido = (ahora - ultimo_ts_alerta) >= settings.yolo_alerta_cooldown_segundos
+            if cooldown_cumplido and detectar_movimiento_por_ventana(list(historial)):
+                ultimo_ts_alerta = ahora
+                historial.clear()  # evita que la misma racha de movimiento dispare dos alertas seguidas
 
-            alerta_id = registrar_alerta(estacion_id, "Movimiento brusco detectado")
-            await bus_alertas.emitir(
-                nuevo_evento(
-                    estacion_id,
-                    "alerta_postura",
-                    {"detalle": "Movimiento brusco detectado", "alerta_id": alerta_id, "veredicto": None},
+                alerta_id = registrar_alerta(estacion_id, "Movimiento brusco detectado")
+                await bus_alertas.emitir(
+                    nuevo_evento(
+                        estacion_id,
+                        "alerta_postura",
+                        {"detalle": "Movimiento brusco detectado", "alerta_id": alerta_id, "veredicto": None},
+                    )
                 )
-            )
+        except Exception:
+            # Un frame problematico (pose incompleta, error puntual de inferencia, etc.) no
+            # debe tumbar la tarea completa: sin este try/except, una excepcion aqui mata
+            # `consumir_video` para siempre y la estacion deja de generar alertas hasta reconectar.
+            logger.exception("Error procesando frame de video de estacion %s", estacion_id)
+            historial.clear()
 
 
 async def consumir_audio(track, estacion_id: str) -> None:
@@ -80,6 +88,10 @@ async def consumir_audio(track, estacion_id: str) -> None:
     loop = asyncio.get_event_loop()
 
     sample_rate_objetivo = 16000
+    # El navegador entrega audio tipicamente a 48kHz; sin resamplear de verdad a 16kHz,
+    # Whisper recibe el audio "acelerado" ~3x y su VAD lo confunde con silencio/ruido.
+    resampler = av.AudioResampler(format="s16", layout="mono", rate=sample_rate_objetivo)
+
     muestras_objetivo = int(settings.audio_chunk_seconds * sample_rate_objetivo)
     buffer: list[np.ndarray] = []
     muestras_acumuladas = 0
@@ -91,13 +103,19 @@ async def consumir_audio(track, estacion_id: str) -> None:
             logger.info("Track de audio finalizado para estacion %s", estacion_id)
             break
 
-        # Resamplear a 16kHz mono si el frame entrante viene en otra tasa/canal
-        audio_np = frame.to_ndarray().astype(np.float32) / 32768.0
-        if audio_np.ndim > 1:
-            audio_np = audio_np.mean(axis=0)  # a mono
+        try:
+            frames_resampleados = resampler.resample(frame)
+        except Exception:
+            logger.exception("Error al resamplear audio de estacion %s", estacion_id)
+            continue
 
-        buffer.append(audio_np)
-        muestras_acumuladas += audio_np.shape[-1]
+        for frame_16k in frames_resampleados:
+            audio_np = frame_16k.to_ndarray().astype(np.float32) / 32768.0
+            if audio_np.ndim > 1:
+                audio_np = audio_np.mean(axis=0)  # a mono
+
+            buffer.append(audio_np)
+            muestras_acumuladas += audio_np.shape[-1]
 
         if muestras_acumuladas < muestras_objetivo:
             continue
@@ -106,7 +124,12 @@ async def consumir_audio(track, estacion_id: str) -> None:
         buffer.clear()
         muestras_acumuladas = 0
 
-        texto = await loop.run_in_executor(_executor, transcriptor.transcribir_chunk, chunk)
+        try:
+            texto = await loop.run_in_executor(_executor, transcriptor.transcribir_chunk, chunk)
+        except Exception:
+            logger.exception("Error al transcribir audio de estacion %s", estacion_id)
+            continue
+
         if texto:
             await bus_alertas.emitir(
                 nuevo_evento(estacion_id, "transcripcion", {"texto": texto})
