@@ -44,11 +44,20 @@ ControlCalidad/
 - **Inferencia en `ThreadPoolExecutor`** ([tracks.py](backend/app/services/webrtc/tracks.py)):
   YOLO y Whisper son bloqueantes; correrlos directo en el event loop de asyncio congelaría
   la señalización WebRTC de todas las demás estaciones.
-- **Estado en memoria, sin base de datos** ([state.py](backend/app/core/state.py)): para
-  12-15 estaciones un `dict` con lock async es suficiente y evita infraestructura extra.
+- **Estado de conexiones en memoria, sin base de datos** ([state.py](backend/app/core/state.py)):
+  para 12-15 estaciones un `dict` con lock async es suficiente y evita infraestructura extra.
 - **Modelo de pose liviano** (`yolov8n-pose.pt`) en vez de detección de objetos genérica:
   para "posturas, movimientos bruscos y gestos corporales" los keypoints de pose dan una
   señal más directa y barata que cajas delimitadoras + clasificación.
+- **Movimiento brusco por ventana deslizante, no por 2 frames** ([detector.py](backend/app/services/yolo/detector.py)):
+  se promedia la posición de cada keypoint en la primera y segunda mitad de una ventana de
+  `YOLO_VENTANA_FRAMES` frames (ponderado por confianza) y se compara el desplazamiento entre
+  esos promedios — es, en esencia, una velocidad suavizada, mucho menos sensible al "temblor"
+  normal de la estimación de pose que comparar 2 frames crudos.
+- **Alertas guardadas en SQLite** ([db.py](backend/app/core/db.py)) con un veredicto pendiente
+  que el supervisor marca como "real" o "falsa alarma" desde el panel. No es solo auditoría:
+  es el dataset etiquetado que hace falta para, más adelante, entrenar un modelo temporal
+  (LSTM/ST-GCN) y dejar de depender de la heurística de umbral.
 
 ## Requisitos previos
 

@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
+backend/data/
+backend/.env
+models/*.pt
+server.log

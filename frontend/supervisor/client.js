@@ -20,6 +20,22 @@ function conectar() {
   };
 }
 
+async function enviarVeredicto(alertaId, veredicto, contenedorAcciones) {
+  contenedorAcciones.innerHTML = "Guardando…";
+  try {
+    const resp = await fetch(`/api/alertas/${alertaId}/veredicto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ veredicto }),
+    });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    contenedorAcciones.innerHTML =
+      veredicto === "confirmada" ? "✔ Marcada como real" : "✘ Marcada como falsa alarma";
+  } catch (err) {
+    contenedorAcciones.textContent = "Error al guardar: " + err.message;
+  }
+}
+
 function agregarEvento(evento) {
   const div = document.createElement("div");
   div.className = "evento " + evento.tipo;
@@ -44,6 +60,28 @@ function agregarEvento(evento) {
   }
 
   div.innerHTML = `<div>${texto}</div><div class="meta">Estacion ${evento.estacion_id} · ${hora}</div>`;
+
+  // Las alertas de postura llevan botones para confirmar o descartar: esas etiquetas
+  // se guardan en el servidor y con el tiempo forman el dataset para entrenar un modelo.
+  if (evento.tipo === "alerta_postura" && evento.alerta_id != null) {
+    const acciones = document.createElement("div");
+    acciones.className = "acciones";
+
+    const btnConfirmar = document.createElement("button");
+    btnConfirmar.textContent = "Fue real";
+    btnConfirmar.className = "btn-veredicto btn-confirmar";
+    btnConfirmar.onclick = () => enviarVeredicto(evento.alerta_id, "confirmada", acciones);
+
+    const btnDescartar = document.createElement("button");
+    btnDescartar.textContent = "Falsa alarma";
+    btnDescartar.className = "btn-veredicto btn-descartar";
+    btnDescartar.onclick = () => enviarVeredicto(evento.alerta_id, "falsa_alarma", acciones);
+
+    acciones.appendChild(btnConfirmar);
+    acciones.appendChild(btnDescartar);
+    div.appendChild(acciones);
+  }
+
   eventosEl.prepend(div);
 
   // Evita que el DOM crezca indefinidamente en una jornada larga

@@ -6,14 +6,17 @@ bloquear el event loop de FastAPI mientras la GPU procesa.
 """
 import asyncio
 import logging
+import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
 from app.core.config import settings
+from app.core.db import registrar_alerta
 from app.core.state import bus_alertas, nuevo_evento
 from app.services.stt.transcriber import Transcriptor
-from app.services.yolo.detector import DetectorYOLO, LimitadorFPS, detectar_movimiento_brusco
+from app.services.yolo.detector import DetectorYOLO, LimitadorFPS, detectar_movimiento_por_ventana
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +29,13 @@ async def consumir_video(track, estacion_id: str) -> None:
     """Lee frames del track de video entrante y los pasa a YOLO a tasa limitada."""
     detector = DetectorYOLO()
     limitador = LimitadorFPS(settings.yolo_target_fps)
-    keypoints_previos = None
     loop = asyncio.get_event_loop()
+
+    # Ventana deslizante de los ultimos N frames (keypoints, confianzas) por estacion:
+    # detectar_movimiento_por_ventana promedia sus dos mitades en vez de comparar 2 frames
+    # crudos, lo que amortigua el ruido normal de la estimacion de pose.
+    historial: deque[tuple[np.ndarray, np.ndarray]] = deque(maxlen=settings.yolo_ventana_frames)
+    ultimo_ts_alerta = 0.0
 
     while True:
         try:
@@ -45,15 +53,25 @@ async def consumir_video(track, estacion_id: str) -> None:
         resultado = await loop.run_in_executor(_executor, detector.procesar_frame, frame_bgr)
 
         if resultado["num_personas"] == 0:
-            keypoints_previos = None
+            historial.clear()
             continue
 
-        kpts_actuales = resultado["keypoints"][0]
-        if detectar_movimiento_brusco(keypoints_previos, kpts_actuales):
+        historial.append((resultado["keypoints"][0], resultado["confianzas"][0]))
+
+        ahora = time.monotonic()
+        cooldown_cumplido = (ahora - ultimo_ts_alerta) >= settings.yolo_alerta_cooldown_segundos
+        if cooldown_cumplido and detectar_movimiento_por_ventana(list(historial)):
+            ultimo_ts_alerta = ahora
+            historial.clear()  # evita que la misma racha de movimiento dispare dos alertas seguidas
+
+            alerta_id = registrar_alerta(estacion_id, "Movimiento brusco detectado")
             await bus_alertas.emitir(
-                nuevo_evento(estacion_id, "alerta_postura", {"detalle": "Movimiento brusco detectado"})
+                nuevo_evento(
+                    estacion_id,
+                    "alerta_postura",
+                    {"detalle": "Movimiento brusco detectado", "alerta_id": alerta_id, "veredicto": None},
+                )
             )
-        keypoints_previos = kpts_actuales
 
 
 async def consumir_audio(track, estacion_id: str) -> None:
