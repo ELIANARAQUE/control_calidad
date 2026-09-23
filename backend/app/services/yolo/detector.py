@@ -107,55 +107,45 @@ def _ancho_hombros(keypoints: np.ndarray, confianzas: np.ndarray, confianza_mini
     return float(ancho) if ancho > 1e-3 else None
 
 
-def _promedio_ponderado(
-    frames_kpts: list[np.ndarray], frames_conf: list[np.ndarray], idx: int, confianza_minima: float
-) -> np.ndarray | None:
-    """Promedia la posicion de un keypoint a lo largo de varios frames, usando la confianza
-    como peso e ignorando frames donde ese punto no es fiable. Promediar (en vez de comparar
-    2 puntos crudos) es lo que amortigua el "temblor" frame a frame de la estimacion de pose.
-    """
-    puntos, pesos = [], []
-    for kpts, conf in zip(frames_kpts, frames_conf):
-        if idx < len(kpts) and conf[idx] >= confianza_minima:
-            puntos.append(kpts[idx])
-            pesos.append(conf[idx])
-    if not puntos:
-        return None
-    return np.average(np.array(puntos), axis=0, weights=np.array(pesos))
+def _hay_movimiento_entre_frames(
+    kpts_prev: np.ndarray, conf_prev: np.ndarray, kpts_act: np.ndarray, conf_act: np.ndarray, escala: float
+) -> bool:
+    puntos_a_comparar = [MUNECA_IZQ, MUNECA_DER, HOMBRO_IZQ, HOMBRO_DER]
+    for idx in puntos_a_comparar:
+        if idx >= len(kpts_prev) or idx >= len(kpts_act) or idx >= len(conf_prev) or idx >= len(conf_act):
+            continue
+        if conf_prev[idx] < settings.yolo_movimiento_confianza_minima or conf_act[idx] < settings.yolo_movimiento_confianza_minima:
+            continue  # punto poco fiable en alguno de los dos frames: se ignora
+        despl_relativo = np.linalg.norm(kpts_act[idx] - kpts_prev[idx]) / escala
+        if despl_relativo > settings.yolo_movimiento_umbral_relativo:
+            return True
+    return False
 
 
 def detectar_movimiento_por_ventana(historial: list[tuple[np.ndarray, np.ndarray]]) -> bool:
     """Heuristica de "movimiento brusco" sobre una ventana deslizante de frames.
 
-    En vez de comparar 2 frames crudos (sensible al ruido normal de la pose), se divide la
-    ventana en "primera mitad" y "segunda mitad", se promedia la posicion de cada keypoint
-    dentro de cada mitad (ponderado por confianza) y se compara el desplazamiento entre esos
-    dos promedios. Esto es, en esencia, una estimacion de velocidad suavizada en vez de un
-    salto puntual, y normaliza por el ancho de hombros para no depender de la distancia a la
-    camara.
+    Recorre pares de frames consecutivos dentro de la ventana buscando un desplazamiento
+    brusco (normalizado por el ancho de hombros, para no depender de la distancia a la
+    camara). Exige que el desplazamiento se sostenga por 2 pares consecutivos -para filtrar
+    el ruido de un solo frame- pero, a diferencia de promediar toda la ventana, SI reacciona
+    a un gesto breve aunque la persona vuelva enseguida a su posicion de reposo (ej. una
+    mala cara momentanea) en vez de que el promedio la "cancele".
     """
-    if len(historial) < settings.yolo_ventana_frames:
-        return False
+    racha = 0
+    for i in range(1, len(historial)):
+        kpts_prev, conf_prev = historial[i - 1]
+        kpts_act, conf_act = historial[i]
 
-    frames_kpts = [k for k, _ in historial]
-    frames_conf = [c for _, c in historial]
-    mitad = len(historial) // 2
-    mitad_vieja_kpts, mitad_vieja_conf = frames_kpts[:mitad], frames_conf[:mitad]
-    mitad_nueva_kpts, mitad_nueva_conf = frames_kpts[mitad:], frames_conf[mitad:]
+        escala = _ancho_hombros(kpts_act, conf_act, settings.yolo_movimiento_confianza_minima)
+        if escala is None:
+            racha = 0
+            continue
 
-    kpts_actuales, conf_actuales = historial[-1]
-    escala = _ancho_hombros(kpts_actuales, conf_actuales, settings.yolo_movimiento_confianza_minima)
-    if escala is None:
-        return False  # sin referencia de escala fiable, no se puede juzgar "brusco" con seguridad
-
-    puntos_a_comparar = [MUNECA_IZQ, MUNECA_DER, HOMBRO_IZQ, HOMBRO_DER]
-    for idx in puntos_a_comparar:
-        pos_vieja = _promedio_ponderado(mitad_vieja_kpts, mitad_vieja_conf, idx, settings.yolo_movimiento_confianza_minima)
-        pos_nueva = _promedio_ponderado(mitad_nueva_kpts, mitad_nueva_conf, idx, settings.yolo_movimiento_confianza_minima)
-        if pos_vieja is None or pos_nueva is None:
-            continue  # sin suficientes observaciones fiables de este punto en alguna mitad
-
-        despl_relativo = np.linalg.norm(pos_nueva - pos_vieja) / escala
-        if despl_relativo > settings.yolo_movimiento_umbral_relativo:
-            return True
+        if _hay_movimiento_entre_frames(kpts_prev, conf_prev, kpts_act, conf_act, escala):
+            racha += 1
+            if racha >= 2:
+                return True
+        else:
+            racha = 0
     return False

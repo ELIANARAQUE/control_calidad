@@ -34,21 +34,29 @@ def inicializar_db() -> None:
             CREATE TABLE IF NOT EXISTS alertas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 estacion_id TEXT NOT NULL,
+                tipo TEXT NOT NULL DEFAULT 'postura',
                 detalle TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 veredicto TEXT
             )
             """
         )
+        # Migra bases de datos creadas antes de que existiera la columna "tipo"
+        columnas = {fila[1] for fila in conn.execute("PRAGMA table_info(alertas)")}
+        if "tipo" not in columnas:
+            conn.execute("ALTER TABLE alertas ADD COLUMN tipo TEXT NOT NULL DEFAULT 'postura'")
 
 
-def registrar_alerta(estacion_id: str, detalle: str) -> int:
+def registrar_alerta(estacion_id: str, detalle: str, tipo: str = "postura") -> int:
     """Guarda una alerta recien generada y devuelve su id, para que el panel de
-    supervisor pueda referenciarla al confirmarla o descartarla despues."""
+    supervisor pueda referenciarla al confirmarla o descartarla despues.
+
+    `tipo`: 'postura' (movimiento brusco) o 'lenguaje' (posible grosería transcrita).
+    """
     with _conexion() as conn:
         cursor = conn.execute(
-            "INSERT INTO alertas (estacion_id, detalle, timestamp, veredicto) VALUES (?, ?, ?, NULL)",
-            (estacion_id, detalle, datetime.now(timezone.utc).isoformat()),
+            "INSERT INTO alertas (estacion_id, tipo, detalle, timestamp, veredicto) VALUES (?, ?, ?, ?, NULL)",
+            (estacion_id, tipo, detalle, datetime.now(timezone.utc).isoformat()),
         )
         return cursor.lastrowid
 

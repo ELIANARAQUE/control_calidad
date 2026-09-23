@@ -16,6 +16,7 @@ import numpy as np
 from app.core.config import settings
 from app.core.db import registrar_alerta
 from app.core.state import bus_alertas, nuevo_evento
+from app.services.stt.lenguaje import contiene_lenguaje_inapropiado
 from app.services.stt.transcriber import Transcriptor
 from app.services.yolo.detector import DetectorYOLO, LimitadorFPS, detectar_movimiento_por_ventana
 
@@ -130,7 +131,22 @@ async def consumir_audio(track, estacion_id: str) -> None:
             logger.exception("Error al transcribir audio de estacion %s", estacion_id)
             continue
 
-        if texto:
+        if not texto:
+            continue
+
+        await bus_alertas.emitir(nuevo_evento(estacion_id, "transcripcion", {"texto": texto}))
+
+        palabra_detectada = contiene_lenguaje_inapropiado(texto)
+        if palabra_detectada:
+            alerta_id = registrar_alerta(estacion_id, f'Lenguaje inapropiado ("{texto}")', tipo="lenguaje")
             await bus_alertas.emitir(
-                nuevo_evento(estacion_id, "transcripcion", {"texto": texto})
+                nuevo_evento(
+                    estacion_id,
+                    "alerta_lenguaje",
+                    {
+                        "detalle": f"Posible lenguaje inapropiado: \"{texto}\"",
+                        "alerta_id": alerta_id,
+                        "veredicto": None,
+                    },
+                )
             )
