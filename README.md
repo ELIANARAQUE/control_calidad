@@ -49,25 +49,40 @@ ControlCalidad/
 - **Modelo de pose liviano** (`yolov8n-pose.pt`) en vez de detección de objetos genérica:
   para "posturas, movimientos bruscos y gestos corporales" los keypoints de pose dan una
   señal más directa y barata que cajas delimitadoras + clasificación.
-- **Movimiento brusco por ventana deslizante, no por 2 frames** ([detector.py](backend/app/services/yolo/detector.py)):
-  se promedia la posición de cada keypoint en la primera y segunda mitad de una ventana de
-  `YOLO_VENTANA_FRAMES` frames (ponderado por confianza) y se compara el desplazamiento entre
-  esos promedios — es, en esencia, una velocidad suavizada, mucho menos sensible al "temblor"
-  normal de la estimación de pose que comparar 2 frames crudos.
-- **Alertas guardadas en SQLite** ([db.py](backend/app/core/db.py)) con un veredicto pendiente
-  que el supervisor marca como "real" o "falsa alarma" desde el panel. No es solo auditoría:
-  es el dataset etiquetado que hace falta para, más adelante, entrenar un modelo temporal
-  (LSTM/ST-GCN) y dejar de depender de la heurística de umbral.
+- **Movimiento brusco por pares de frames consecutivos dentro de una ventana**
+  ([detector.py](backend/app/services/yolo/detector.py)): normaliza el desplazamiento por el
+  ancho de hombros (no depende de la distancia a la cámara), ignora keypoints de baja
+  confianza, y exige 2 pares consecutivos por encima del umbral para filtrar ruido de un
+  solo frame — pero SÍ reacciona a un gesto breve aunque la persona vuelva enseguida a su
+  posición de reposo (a diferencia de promediar toda la ventana, que lo "cancelaría").
+- **Expresión facial (FER+)** ([emocion/detector.py](backend/app/services/emocion/detector.py)):
+  segundo modelo, liviano (~34MB, ONNX, corre en CPU sin competir por VRAM), que reutiliza los
+  keypoints de nariz/ojos que YOLO-pose ya calcula para recortar la cara — no hace falta un
+  detector de cara aparte. Alerta cuando "enojo/disgusto/desprecio" supera el umbral de
+  probabilidad, con el mismo debounce + cooldown que la heurística de postura.
+- **Lenguaje inapropiado por palabras clave** ([lenguaje.py](backend/app/services/stt/lenguaje.py))
+  sobre el texto ya transcrito por Whisper, con groserías/modismos colombianos — dejando fuera
+  a propósito palabras ambiguas (ej. "chimba", "arrecho") que en Colombia se usan tanto en
+  sentido positivo como ofensivo según el contexto.
+- **Alertas guardadas en SQLite** ([db.py](backend/app/core/db.py)), con un `tipo`
+  ('postura' / 'expresion' / 'lenguaje') y un veredicto pendiente que el supervisor marca
+  como "real" o "falsa alarma" desde el panel. No es solo auditoría: es el dataset etiquetado
+  que hace falta para, más adelante, entrenar modelos propios (temporal para postura/expresión,
+  clasificador de toxicidad para lenguaje) y dejar de depender de heurísticas de umbral.
 
 ## Requisitos previos
 
 - Python 3.10+ en el servidor con GPU NVIDIA (drivers CUDA instalados).
 - `ffmpeg` instalado en el servidor (lo usa `av`/aiortc para decodificar).
-- Descargar el modelo de pose y colocarlo en `models/`:
+- Descargar los modelos y colocarlos en `models/` (no se versionan en git, ver `.gitignore`):
   ```bash
-  # Ultralytics lo descarga automático la primera vez si se deja solo el nombre,
-  # pero para control de versión explícito:
+  # Pose (YOLO) - Ultralytics lo descarga solo si se deja solo el nombre, pero para
+  # control de version explicito:
   python -c "from ultralytics import YOLO; YOLO('yolov8n-pose.pt')"
+  # mover el .pt resultante a models/yolov8n-pose.pt
+
+  # Expresion facial (FER+, ONNX, ~34MB)
+  curl -L -o models/emotion-ferplus-8.onnx "https://github.com/onnx/models/raw/main/validated/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx"
   ```
 
 ## Instalación

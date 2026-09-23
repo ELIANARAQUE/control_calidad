@@ -17,8 +17,9 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Indices de keypoints COCO-pose relevantes para detectar movimientos bruscos
-NARIZ, HOMBRO_IZQ, HOMBRO_DER, MUNECA_IZQ, MUNECA_DER = 0, 5, 6, 9, 10
+# Indices de keypoints COCO-pose
+NARIZ, OJO_IZQ, OJO_DER, OREJA_IZQ, OREJA_DER = 0, 1, 2, 3, 4
+HOMBRO_IZQ, HOMBRO_DER, MUNECA_IZQ, MUNECA_DER = 5, 6, 9, 10
 
 
 class DetectorYOLO:
@@ -92,7 +93,7 @@ class LimitadorFPS:
         return False
 
 
-def _ancho_hombros(keypoints: np.ndarray, confianzas: np.ndarray, confianza_minima: float) -> float | None:
+def ancho_hombros(keypoints: np.ndarray, confianzas: np.ndarray, confianza_minima: float) -> float | None:
     """Distancia en pixeles entre hombros: sirve como referencia de escala de la persona
     (mas cerca de la camara = hombros mas separados en pixeles = umbral de movimiento mayor).
 
@@ -137,7 +138,7 @@ def detectar_movimiento_por_ventana(historial: list[tuple[np.ndarray, np.ndarray
         kpts_prev, conf_prev = historial[i - 1]
         kpts_act, conf_act = historial[i]
 
-        escala = _ancho_hombros(kpts_act, conf_act, settings.yolo_movimiento_confianza_minima)
+        escala = ancho_hombros(kpts_act, conf_act, settings.yolo_movimiento_confianza_minima)
         if escala is None:
             racha = 0
             continue

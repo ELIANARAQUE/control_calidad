@@ -16,6 +16,7 @@ import numpy as np
 from app.core.config import settings
 from app.core.db import registrar_alerta
 from app.core.state import bus_alertas, nuevo_evento
+from app.services.emocion.detector import EMOCIONES_NEGATIVAS, DetectorEmocion, recortar_cara
 from app.services.stt.lenguaje import contiene_lenguaje_inapropiado
 from app.services.stt.transcriber import Transcriptor
 from app.services.yolo.detector import DetectorYOLO, LimitadorFPS, detectar_movimiento_por_ventana
@@ -28,8 +29,10 @@ _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="inferencia")
 
 
 async def consumir_video(track, estacion_id: str) -> None:
-    """Lee frames del track de video entrante y los pasa a YOLO a tasa limitada."""
+    """Lee frames del track de video entrante y los pasa a YOLO (y opcionalmente al modelo
+    de expresion facial) a tasa limitada."""
     detector = DetectorYOLO()
+    detector_emocion = DetectorEmocion() if settings.emocion_habilitada else None
     limitador = LimitadorFPS(settings.yolo_target_fps)
     loop = asyncio.get_event_loop()
 
@@ -38,6 +41,11 @@ async def consumir_video(track, estacion_id: str) -> None:
     # crudos, lo que amortigua el ruido normal de la estimacion de pose.
     historial: deque[tuple[np.ndarray, np.ndarray]] = deque(maxlen=settings.yolo_ventana_frames)
     ultimo_ts_alerta = 0.0
+
+    # Debounce/cooldown independientes para la expresion facial (misma logica que postura,
+    # pero por separado: son heuristicas distintas con umbrales distintos).
+    racha_emocion = 0
+    ultimo_ts_alerta_emocion = 0.0
 
     while True:
         try:
@@ -57,9 +65,12 @@ async def consumir_video(track, estacion_id: str) -> None:
 
             if resultado["num_personas"] == 0:
                 historial.clear()
+                racha_emocion = 0
                 continue
 
-            historial.append((resultado["keypoints"][0], resultado["confianzas"][0]))
+            kpts_persona = resultado["keypoints"][0]
+            conf_persona = resultado["confianzas"][0]
+            historial.append((kpts_persona, conf_persona))
 
             ahora = time.monotonic()
             cooldown_cumplido = (ahora - ultimo_ts_alerta) >= settings.yolo_alerta_cooldown_segundos
@@ -75,12 +86,45 @@ async def consumir_video(track, estacion_id: str) -> None:
                         {"detalle": "Movimiento brusco detectado", "alerta_id": alerta_id, "veredicto": None},
                     )
                 )
+
+            if detector_emocion is not None:
+                recorte_cara = recortar_cara(
+                    frame_bgr, kpts_persona, conf_persona, settings.emocion_confianza_minima_keypoints
+                )
+                if recorte_cara is None:
+                    racha_emocion = 0
+                else:
+                    etiqueta, probabilidad = await loop.run_in_executor(
+                        _executor, detector_emocion.clasificar, recorte_cara
+                    )
+                    if etiqueta in EMOCIONES_NEGATIVAS and probabilidad >= settings.emocion_umbral_probabilidad:
+                        racha_emocion += 1
+                    else:
+                        racha_emocion = 0
+
+                    cooldown_emocion_cumplido = (
+                        ahora - ultimo_ts_alerta_emocion
+                    ) >= settings.emocion_cooldown_segundos
+                    if racha_emocion >= settings.emocion_frames_consecutivos and cooldown_emocion_cumplido:
+                        ultimo_ts_alerta_emocion = ahora
+                        racha_emocion = 0
+
+                        detalle = f"Expresión facial: {etiqueta} ({probabilidad:.0%})"
+                        alerta_id = registrar_alerta(estacion_id, detalle, tipo="expresion")
+                        await bus_alertas.emitir(
+                            nuevo_evento(
+                                estacion_id,
+                                "alerta_expresion",
+                                {"detalle": detalle, "alerta_id": alerta_id, "veredicto": None},
+                            )
+                        )
         except Exception:
             # Un frame problematico (pose incompleta, error puntual de inferencia, etc.) no
             # debe tumbar la tarea completa: sin este try/except, una excepcion aqui mata
             # `consumir_video` para siempre y la estacion deja de generar alertas hasta reconectar.
             logger.exception("Error procesando frame de video de estacion %s", estacion_id)
             historial.clear()
+            racha_emocion = 0
 
 
 async def consumir_audio(track, estacion_id: str) -> None:

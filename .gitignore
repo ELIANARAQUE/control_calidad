@@ -4,4 +4,5 @@ __pycache__/
 backend/data/
 backend/.env
 models/*.pt
+models/*.onnx
 server.log

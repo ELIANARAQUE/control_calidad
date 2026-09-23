@@ -11,6 +11,9 @@ opencv-python-headless==4.10.0.84
 torch==2.4.1
 torchvision==0.19.1
 
+# Expresion facial (FER+)
+onnxruntime==1.30.0
+
 # Audio / STT
 faster-whisper==1.0.3
 numpy==1.26.4

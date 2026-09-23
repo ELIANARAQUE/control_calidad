@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     yolo_ventana_frames: int = 5  # cuantos frames recientes se mantienen en el buffer de contexto
     yolo_alerta_cooldown_segundos: float = 8.0  # tiempo minimo entre alertas repetidas de la misma estacion
 
+    # --- Expresion facial (FER+) ---
+    emocion_habilitada: bool = True
+    emocion_modelo_path: str = "../models/emotion-ferplus-8.onnx"
+    emocion_confianza_minima_keypoints: float = 0.4  # nariz/ojos suelen tener algo menos de confianza que hombros
+    emocion_umbral_probabilidad: float = 0.55  # que tan segura debe estar la clasificacion para contar
+    emocion_frames_consecutivos: int = 2  # exige varias detecciones seguidas antes de alertar
+    emocion_cooldown_segundos: float = 10.0  # tiempo minimo entre alertas repetidas de la misma estacion
+
     # --- Audio / STT ---
     whisper_model_size: str = "small"  # tiny/base/small/medium segun VRAM disponible
     whisper_device: str = "cuda"

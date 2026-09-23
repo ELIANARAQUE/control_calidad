@@ -49,6 +49,9 @@ function agregarEvento(evento) {
     case "alerta_lenguaje":
       texto = `🤬 Alerta: ${evento.detalle}`;
       break;
+    case "alerta_expresion":
+      texto = `😠 Alerta: ${evento.detalle}`;
+      break;
     case "transcripcion":
       texto = `🎤 "${evento.texto}"`;
       break;
@@ -66,7 +69,8 @@ function agregarEvento(evento) {
 
   // Las alertas de postura llevan botones para confirmar o descartar: esas etiquetas
   // se guardan en el servidor y con el tiempo forman el dataset para entrenar un modelo.
-  if ((evento.tipo === "alerta_postura" || evento.tipo === "alerta_lenguaje") && evento.alerta_id != null) {
+  const esAlertaConVeredicto = ["alerta_postura", "alerta_lenguaje", "alerta_expresion"].includes(evento.tipo);
+  if (esAlertaConVeredicto && evento.alerta_id != null) {
     const acciones = document.createElement("div");
     acciones.className = "acciones";
 
