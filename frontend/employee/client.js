@@ -143,13 +143,26 @@ btnIniciar.addEventListener("click", () => {
 
 btnDetener.addEventListener("click", detenerMonitoreo);
 
-// Si el programa de escritorio ya conoce el nombre del empleado (sesion anterior),
-// se autocompleta y arranca solo, sin que el empleado tenga que interactuar.
+// El programa de escritorio (ver desktop_client/app.py) abre esta pagina con
+// ?estacion_id=...&nombre=... como parametros de URL: el id viene de un archivo que el
+// propio programa guarda junto a si mismo en el PC (estable entre reinicios, no depende
+// del cache del navegador embebido), y el nombre es opcional si se preconfiguro el puesto.
+// Si vienen en la URL tienen prioridad sobre lo guardado en localStorage, que solo sirve
+// como respaldo para cuando se accede desde un navegador normal sin el programa.
 window.addEventListener("DOMContentLoaded", () => {
-  const nombreGuardado = localStorage.getItem(CLAVE_NOMBRE);
-  if (nombreGuardado) {
-    inputNombre.value = nombreGuardado;
-    iniciarMonitoreo(nombreGuardado);
+  const parametros = new URLSearchParams(window.location.search);
+  const estacionIdDelPrograma = parametros.get("estacion_id");
+  const nombreDelPrograma = parametros.get("nombre");
+
+  if (estacionIdDelPrograma) {
+    localStorage.setItem(CLAVE_ESTACION, estacionIdDelPrograma);
+  }
+
+  const nombreInicial = nombreDelPrograma || localStorage.getItem(CLAVE_NOMBRE);
+  if (nombreInicial) {
+    inputNombre.value = nombreInicial;
+    localStorage.setItem(CLAVE_NOMBRE, nombreInicial);
+    iniciarMonitoreo(nombreInicial);
   } else {
     setEstado("Ingresa tu nombre para iniciar la sesión de monitoreo");
   }

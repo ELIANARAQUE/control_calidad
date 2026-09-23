@@ -11,7 +11,9 @@ Pensado para arrancar automaticamente al iniciar sesion en Windows (ver
 """
 import json
 import threading
+import uuid
 from pathlib import Path
+from urllib.parse import quote
 
 import pystray
 import webview
@@ -20,10 +22,41 @@ from icono import crear_icono
 
 RUTA_CONFIG = Path(__file__).parent / "config.json"
 
+# Guardado junto al programa (no en el cache del WebView, que puede limpiarse o vivir en
+# otro perfil): identifica ESTE puesto de trabajo de forma estable entre reinicios del
+# programa. Se genera una sola vez, la primera vez que corre en este PC.
+RUTA_ID_ESTACION = Path(__file__).parent / "estacion_id.txt"
+
 
 def cargar_config() -> dict:
     with open(RUTA_CONFIG, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def obtener_id_estacion_persistente() -> str:
+    if RUTA_ID_ESTACION.exists():
+        id_guardado = RUTA_ID_ESTACION.read_text(encoding="utf-8").strip()
+        if id_guardado:
+            return id_guardado
+
+    nuevo_id = str(uuid.uuid4())
+    RUTA_ID_ESTACION.write_text(nuevo_id, encoding="utf-8")
+    return nuevo_id
+
+
+def construir_url(config: dict) -> str:
+    """Agrega el id de estacion (y el nombre del empleado, si esta preconfigurado en
+    config.json) como parametros de URL, para que el frontend los use en vez de generar
+    o pedir esos datos el mismo."""
+    estacion_id = obtener_id_estacion_persistente()
+    separador = "&" if "?" in config["servidor_url"] else "?"
+    url = f'{config["servidor_url"]}{separador}estacion_id={estacion_id}'
+
+    nombre_empleado = config.get("empleado_nombre", "").strip()
+    if nombre_empleado:
+        url += f"&nombre={quote(nombre_empleado)}"
+
+    return url
 
 
 def main() -> None:
@@ -31,7 +64,7 @@ def main() -> None:
 
     ventana = webview.create_window(
         config["titulo_ventana"],
-        config["servidor_url"],
+        construir_url(config),
         width=config["ancho"],
         height=config["alto"],
         resizable=True,

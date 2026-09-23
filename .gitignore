@@ -6,3 +6,4 @@ backend/.env
 models/*.pt
 models/*.onnx
 server.log
+desktop_client/estacion_id.txt
