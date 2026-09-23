@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     whisper_device: str = "cuda"
     whisper_compute_type: str = "int8_float16"  # cuantizacion para ahorrar VRAM
     audio_chunk_seconds: float = 4.0
+    audio_energia_minima: float = 0.01  # RMS minimo para mandar el chunk a Whisper (evita alucinar en silencio)
 
     # --- Rutas ---
     recordings_dir: str = "recordings"
