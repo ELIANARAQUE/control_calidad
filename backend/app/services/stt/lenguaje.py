@@ -12,6 +12,7 @@ import unicodedata
 # minusculas, y por palabra completa (no substring) para evitar falsos positivos como
 # "clasificar" conteniendo "asic...". Ajustar segun el contexto/región de la operación.
 PALABRAS_INAPROPIADAS = {
+    # Groserias generales en espaniol
     "mierda",
     "puta",
     "puto",
@@ -35,9 +36,20 @@ PALABRAS_INAPROPIADAS = {
     "cono",
     "marica",
     "maricon",
+    # Modismos/groserias tipicas de Colombia (se dejan fuera a proposito palabras ambiguas
+    # como "chimba" o "arrecho", que en Colombia se usan tanto en sentido positivo como
+    # ofensivo segun el contexto/tono - meterlas aqui dispararia muchos falsos positivos)
     "gonorrea",
     "hijueputa",
+    "hijuemadre",
     "hp",
+    "malparido",
+    "malparida",
+    "guevon",
+    "gueva",
+    "gonorrio",
+    "chandoso",
+    "chandosa",
 }
 
 

@@ -138,13 +138,16 @@ async def consumir_audio(track, estacion_id: str) -> None:
 
         palabra_detectada = contiene_lenguaje_inapropiado(texto)
         if palabra_detectada:
-            alerta_id = registrar_alerta(estacion_id, f'Lenguaje inapropiado ("{texto}")', tipo="lenguaje")
+            # El detalle guardado en BD conserva la transcripcion completa (auditoria); el
+            # que se muestra en vivo va corto, para no llenar el panel con frases largas.
+            fragmento = texto if len(texto) <= 60 else texto[:57] + "..."
+            alerta_id = registrar_alerta(estacion_id, f'Palabra "{palabra_detectada}" en: "{texto}"', tipo="lenguaje")
             await bus_alertas.emitir(
                 nuevo_evento(
                     estacion_id,
                     "alerta_lenguaje",
                     {
-                        "detalle": f"Posible lenguaje inapropiado: \"{texto}\"",
+                        "detalle": f'"{palabra_detectada}" — "{fragmento}"',
                         "alerta_id": alerta_id,
                         "veredicto": None,
                     },

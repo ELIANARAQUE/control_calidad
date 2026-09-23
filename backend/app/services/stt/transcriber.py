@@ -21,10 +21,21 @@ FRASES_ALUCINACION = {
     "suscribete al canal",
     "gracias por ver el video",
     "gracias por ver",
+    "gracias por ver este video",
     "gracias por su atencion",
+    "gracias por verme",
+    "muchas gracias",
     "nos vemos en el proximo video",
+    "nos vemos en el siguiente video",
+    "hasta el proximo video",
     "like y suscribete",
     "dale like y suscribete",
+    "activa la campanita",
+    "cuidate",
+    "cuidense",
+    "care onda",
+    "chao",
+    "adios",
 }
 
 
@@ -65,10 +76,15 @@ class Transcriptor:
     def transcribir_chunk(self, audio_f32_mono_16k: np.ndarray) -> str:
         """Recibe audio mono float32 a 16kHz y devuelve el texto transcrito.
 
-        Dos filtros contra las "alucinaciones" tipicas de Whisper en silencio (frases de
-        YouTube como "suscribete"): 1) si el chunk no supera un piso de energia, ni se
-        manda al modelo; 2) el `vad_filter` interno de faster-whisper recorta los tramos
-        sin voz dentro del chunk antes de transcribir.
+        Filtros contra las "alucinaciones" tipicas de Whisper en silencio/ruido de fondo
+        (frases de YouTube como "suscribete" o "nos vemos en el proximo video"):
+          1. Piso de energia: si el chunk no supera un RMS minimo, ni se manda al modelo.
+          2. `vad_filter` interno de faster-whisper recorta los tramos sin voz del chunk.
+          3. El propio `no_speech_prob` que da Whisper por segmento: es la probabilidad,
+             segun el modelo, de que ESE segmento no tenga voz humana real. Las alucinaciones
+             tipicamente salen con `no_speech_prob` alto (el modelo "no esta seguro" pero
+             igual rellena texto), asi que es mucho mas confiable que una lista de frases.
+          4. Lista negra de frases conocidas, como ultimo filtro por si aun asi se cuela algo.
         """
         energia = float(np.sqrt(np.mean(np.square(audio_f32_mono_16k))))  # RMS
         if energia < settings.audio_energia_minima:
@@ -82,7 +98,13 @@ class Transcriptor:
             beam_size=1,  # beam pequeno para priorizar latencia sobre precision
             condition_on_previous_text=False,  # evita que una alucinacion se "contagie" al siguiente chunk
         )
-        texto = " ".join(seg.text.strip() for seg in segmentos).strip()
+
+        partes_confiables = [
+            seg.text.strip()
+            for seg in segmentos
+            if seg.no_speech_prob < settings.whisper_no_speech_prob_maximo
+        ]
+        texto = " ".join(p for p in partes_confiables if p).strip()
 
         if texto and _es_alucinacion(texto):
             logger.debug("Descartada probable alucinacion de Whisper: %r", texto)

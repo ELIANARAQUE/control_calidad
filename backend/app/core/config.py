@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8_float16"  # cuantizacion para ahorrar VRAM
     audio_chunk_seconds: float = 3.0  # mas corto = menos latencia percibida, pero mas overhead por chunk
     audio_energia_minima: float = 0.01  # RMS minimo para mandar el chunk a Whisper (evita alucinar en silencio)
+    whisper_no_speech_prob_maximo: float = 0.45  # descarta segmentos que el propio modelo considera poco fiables
 
     # --- Rutas ---
     recordings_dir: str = "recordings"
