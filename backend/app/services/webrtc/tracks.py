@@ -128,7 +128,11 @@ async def consumir_video(track, estacion_id: str) -> None:
 
 
 async def consumir_audio(track, estacion_id: str) -> None:
-    """Acumula audio en chunks de N segundos y los envia a Whisper para transcribir."""
+    """Acumula audio y lo envia a Whisper cuando detecta una pausa real de habla, no a un
+    tiempo fijo -cortar a horario arbitrario parte frases por la mitad ("...esto es una
+    prueba de text" + "o" en el siguiente chunk), lo cual ademas empeora la transcripcion
+    porque Whisper pierde el contexto de la frase completa.
+    """
     transcriptor = Transcriptor()
     loop = asyncio.get_event_loop()
 
@@ -137,9 +141,13 @@ async def consumir_audio(track, estacion_id: str) -> None:
     # Whisper recibe el audio "acelerado" ~3x y su VAD lo confunde con silencio/ruido.
     resampler = av.AudioResampler(format="s16", layout="mono", rate=sample_rate_objetivo)
 
-    muestras_objetivo = int(settings.audio_chunk_seconds * sample_rate_objetivo)
+    muestras_maximas = int(settings.audio_chunk_maximo_segundos * sample_rate_objetivo)
+    muestras_minimas = int(settings.audio_chunk_minimo_segundos * sample_rate_objetivo)
+    muestras_silencio_para_cortar = int(settings.audio_silencio_para_cortar_ms / 1000 * sample_rate_objetivo)
+
     buffer: list[np.ndarray] = []
     muestras_acumuladas = 0
+    muestras_silencio_consecutivas = 0
 
     while True:
         try:
@@ -162,12 +170,24 @@ async def consumir_audio(track, estacion_id: str) -> None:
             buffer.append(audio_np)
             muestras_acumuladas += audio_np.shape[-1]
 
-        if muestras_acumuladas < muestras_objetivo:
+            energia_frame = float(np.sqrt(np.mean(np.square(audio_np))))
+            if energia_frame < settings.audio_silencio_rms:
+                muestras_silencio_consecutivas += audio_np.shape[-1]
+            else:
+                muestras_silencio_consecutivas = 0
+
+        hubo_pausa = (
+            muestras_acumuladas >= muestras_minimas
+            and muestras_silencio_consecutivas >= muestras_silencio_para_cortar
+        )
+        alcanzo_tope = muestras_acumuladas >= muestras_maximas
+        if not (hubo_pausa or alcanzo_tope):
             continue
 
         chunk = np.concatenate(buffer)
         buffer.clear()
         muestras_acumuladas = 0
+        muestras_silencio_consecutivas = 0
 
         try:
             texto = await loop.run_in_executor(_executor, transcriptor.transcribir_chunk, chunk)

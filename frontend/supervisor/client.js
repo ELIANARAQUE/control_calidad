@@ -1,23 +1,106 @@
-// Cliente del panel de supervisor: recibe alertas/transcripciones en vivo por WebSocket.
+// Cliente del panel de supervisor: recibe alertas/transcripciones en vivo por WebSocket y
+// las organiza en una tarjeta por estación (en vez de un único listado largo).
 
-const estadoEl = document.getElementById("estado");
-const eventosEl = document.getElementById("eventos");
+const estadoTextoEl = document.getElementById("estadoTexto");
+const puntoEl = document.getElementById("punto");
+const gridEl = document.getElementById("grid");
+const vacioEl = document.getElementById("vacio");
+
+const statEstaciones = document.getElementById("statEstaciones");
+const statAlertas = document.getElementById("statAlertas");
+const statPendientes = document.getElementById("statPendientes");
+const statTranscripciones = document.getElementById("statTranscripciones");
+
+const TIPOS_CON_VEREDICTO = new Set(["alerta_postura", "alerta_lenguaje", "alerta_expresion"]);
+const MAX_EVENTOS_POR_TARJETA = 12;
+
+// estacion_id -> { empleado, conectada, eventos: [...] (mas reciente primero) }
+const estaciones = new Map();
+
+const contadores = { alertasHoy: 0, pendientes: 0, transcripciones: 0 };
 
 function conectar() {
   const protocolo = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${protocolo}://${location.host}/ws/supervisor`);
 
-  ws.onopen = () => (estadoEl.textContent = "Conectado en vivo");
+  ws.onopen = () => {
+    estadoTextoEl.textContent = "Conectado en vivo";
+    puntoEl.classList.add("conectado");
+  };
   ws.onclose = () => {
-    estadoEl.textContent = "Desconectado. Reintentando en 3s...";
+    estadoTextoEl.textContent = "Desconectado. Reintentando en 3s…";
+    puntoEl.classList.remove("conectado");
     setTimeout(conectar, 3000);
   };
   ws.onerror = () => ws.close();
 
   ws.onmessage = (msg) => {
     const evento = JSON.parse(msg.data);
-    agregarEvento(evento);
+    procesarEvento(evento);
   };
+}
+
+function obtenerEstacion(estacionId) {
+  if (!estaciones.has(estacionId)) {
+    estaciones.set(estacionId, { empleado: null, conectada: false, eventos: [] });
+  }
+  return estaciones.get(estacionId);
+}
+
+function procesarEvento(evento) {
+  const estacion = obtenerEstacion(evento.estacion_id);
+
+  switch (evento.tipo) {
+    case "conexion":
+      estacion.empleado = evento.empleado;
+      estacion.conectada = true;
+      break;
+    case "desconexion":
+      estacion.conectada = false;
+      break;
+    case "transcripcion":
+      contadores.transcripciones++;
+      estacion.eventos.unshift(evento);
+      break;
+    default:
+      if (TIPOS_CON_VEREDICTO.has(evento.tipo)) {
+        contadores.alertasHoy++;
+        contadores.pendientes++;
+      }
+      estacion.eventos.unshift(evento);
+  }
+
+  if (estacion.eventos.length > MAX_EVENTOS_POR_TARJETA) {
+    estacion.eventos.length = MAX_EVENTOS_POR_TARJETA;
+  }
+
+  actualizarResumen();
+  renderizarTarjeta(evento.estacion_id);
+}
+
+function actualizarResumen() {
+  const activas = [...estaciones.values()].filter((e) => e.conectada).length;
+  statEstaciones.textContent = activas;
+  statAlertas.textContent = contadores.alertasHoy;
+  statPendientes.textContent = contadores.pendientes;
+  statTranscripciones.textContent = contadores.transcripciones;
+
+  vacioEl.classList.toggle("oculto", estaciones.size > 0);
+}
+
+function textoEvento(evento) {
+  switch (evento.tipo) {
+    case "alerta_postura":
+      return `⚠ ${evento.detalle}`;
+    case "alerta_lenguaje":
+      return `🤬 ${evento.detalle}`;
+    case "alerta_expresion":
+      return `😠 ${evento.detalle}`;
+    case "transcripcion":
+      return `🎤 "${evento.texto}"`;
+    default:
+      return evento.detalle || JSON.stringify(evento);
+  }
 }
 
 async function enviarVeredicto(alertaId, veredicto, contenedorAcciones) {
@@ -29,48 +112,22 @@ async function enviarVeredicto(alertaId, veredicto, contenedorAcciones) {
       body: JSON.stringify({ veredicto }),
     });
     if (!resp.ok) throw new Error("HTTP " + resp.status);
-    contenedorAcciones.innerHTML =
-      veredicto === "confirmada" ? "✔ Marcada como real" : "✘ Marcada como falsa alarma";
+    contenedorAcciones.innerHTML = veredicto === "confirmada" ? "✔ Marcada como real" : "✘ Falsa alarma";
+    contadores.pendientes = Math.max(0, contadores.pendientes - 1);
+    statPendientes.textContent = contadores.pendientes;
   } catch (err) {
     contenedorAcciones.textContent = "Error al guardar: " + err.message;
   }
 }
 
-function agregarEvento(evento) {
+function crearElementoEvento(evento) {
   const div = document.createElement("div");
   div.className = "evento " + evento.tipo;
 
-  const hora = new Date(evento.timestamp).toLocaleTimeString();
-  let texto = "";
-  switch (evento.tipo) {
-    case "alerta_postura":
-      texto = `⚠ Alerta: ${evento.detalle}`;
-      break;
-    case "alerta_lenguaje":
-      texto = `🤬 Alerta: ${evento.detalle}`;
-      break;
-    case "alerta_expresion":
-      texto = `😠 Alerta: ${evento.detalle}`;
-      break;
-    case "transcripcion":
-      texto = `🎤 "${evento.texto}"`;
-      break;
-    case "conexion":
-      texto = `✅ ${evento.empleado} se conecto`;
-      break;
-    case "desconexion":
-      texto = `❌ ${evento.empleado} se desconecto`;
-      break;
-    default:
-      texto = JSON.stringify(evento);
-  }
+  const hora = new Date(evento.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  div.innerHTML = `<div class="texto-evento">${textoEvento(evento)}</div><div class="meta">${hora}</div>`;
 
-  div.innerHTML = `<div>${texto}</div><div class="meta">Estacion ${evento.estacion_id} · ${hora}</div>`;
-
-  // Las alertas de postura llevan botones para confirmar o descartar: esas etiquetas
-  // se guardan en el servidor y con el tiempo forman el dataset para entrenar un modelo.
-  const esAlertaConVeredicto = ["alerta_postura", "alerta_lenguaje", "alerta_expresion"].includes(evento.tipo);
-  if (esAlertaConVeredicto && evento.alerta_id != null) {
+  if (TIPOS_CON_VEREDICTO.has(evento.tipo) && evento.alerta_id != null) {
     const acciones = document.createElement("div");
     acciones.className = "acciones";
 
@@ -89,11 +146,45 @@ function agregarEvento(evento) {
     div.appendChild(acciones);
   }
 
-  eventosEl.prepend(div);
+  return div;
+}
 
-  // Evita que el DOM crezca indefinidamente en una jornada larga
-  while (eventosEl.children.length > 200) {
-    eventosEl.removeChild(eventosEl.lastChild);
+function renderizarTarjeta(estacionId) {
+  const datos = estaciones.get(estacionId);
+  let tarjeta = document.getElementById("estacion-" + estacionId);
+
+  if (!tarjeta) {
+    tarjeta = document.createElement("article");
+    tarjeta.className = "tarjeta-estacion";
+    tarjeta.id = "estacion-" + estacionId;
+    tarjeta.innerHTML = `
+      <div class="cabecera-estacion">
+        <div>
+          <div class="nombre-empleado"></div>
+          <div class="id-estacion"></div>
+        </div>
+        <span class="chip-estado"></span>
+      </div>
+      <div class="lista-eventos"></div>
+    `;
+    gridEl.appendChild(tarjeta);
+  }
+
+  tarjeta.querySelector(".nombre-empleado").textContent = datos.empleado || "Empleado sin identificar";
+  tarjeta.querySelector(".id-estacion").textContent = estacionId;
+
+  const chip = tarjeta.querySelector(".chip-estado");
+  chip.textContent = datos.conectada ? "En vivo" : "Desconectada";
+  chip.className = "chip-estado " + (datos.conectada ? "en-vivo" : "desconectada");
+
+  const lista = tarjeta.querySelector(".lista-eventos");
+  lista.innerHTML = "";
+  if (datos.eventos.length === 0) {
+    lista.innerHTML = '<div class="sin-eventos">Sin actividad todavía.</div>';
+  } else {
+    for (const evento of datos.eventos) {
+      lista.appendChild(crearElementoEvento(evento));
+    }
   }
 }
 

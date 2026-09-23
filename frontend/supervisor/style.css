@@ -1,0 +1,233 @@
+/* Dashboard claro, en el mismo lenguaje visual que el panel de empleado: paleta neutra,
+   un solo acento, tarjetas simples sin degradados ni efectos "IA genérica". */
+
+:root {
+  --fondo: #f5f4f1;
+  --superficie: #ffffff;
+  --borde: #e4e2dc;
+  --texto: #1c1b19;
+  --texto-tenue: #6f6c65;
+  --acento: #1f5f4f;
+  --acento-suave: #eaf1ee;
+  --rojo: #b3441f;
+  --naranja: #c07816;
+  --morado: #6a4c93;
+  --azul: #2f6690;
+  --verde: #1f5f4f;
+  --radio: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: -apple-system, "Segoe UI", "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: 1.5rem 2rem 3rem;
+}
+
+/* --- Encabezado --- */
+
+.encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.titulo h1 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.subtitulo {
+  font-size: 0.85rem;
+  color: var(--texto-tenue);
+}
+
+.estado {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--texto-tenue);
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+}
+
+.punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--texto-tenue);
+  flex-shrink: 0;
+}
+
+.punto.conectado {
+  background: var(--acento);
+}
+
+/* --- Fila de resumen --- */
+
+.resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.75rem;
+}
+
+.tarjeta-resumen {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tarjeta-resumen .valor {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.tarjeta-resumen .etiqueta {
+  font-size: 0.78rem;
+  color: var(--texto-tenue);
+}
+
+/* --- Grid de tarjetas por estacion --- */
+
+.grid-estaciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.tarjeta-estacion {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.tarjeta-estacion .cabecera-estacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.tarjeta-estacion .nombre-empleado {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.tarjeta-estacion .id-estacion {
+  font-size: 0.7rem;
+  color: var(--texto-tenue);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+.chip-estado {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.chip-estado.en-vivo {
+  background: var(--acento-suave);
+  color: var(--acento);
+}
+
+.chip-estado.desconectada {
+  background: #f2ede9;
+  color: var(--texto-tenue);
+}
+
+.lista-eventos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.evento {
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--borde);
+  border-radius: 6px;
+  background: var(--fondo);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.evento .texto-evento {
+  word-break: break-word;
+}
+
+.evento .meta {
+  font-size: 0.68rem;
+  color: var(--texto-tenue);
+  margin-top: 0.15rem;
+}
+
+.evento.alerta_postura { border-left-color: var(--rojo); }
+.evento.alerta_lenguaje { border-left-color: var(--naranja); }
+.evento.alerta_expresion { border-left-color: var(--morado); }
+.evento.transcripcion { border-left-color: var(--azul); }
+
+.acciones {
+  margin-top: 0.4rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.btn-veredicto {
+  font-size: 0.72rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--borde);
+  background: var(--superficie);
+  color: var(--texto);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-confirmar:hover { border-color: var(--rojo); color: var(--rojo); }
+.btn-descartar:hover { border-color: var(--acento); color: var(--acento); }
+
+.sin-eventos {
+  font-size: 0.8rem;
+  color: var(--texto-tenue);
+  padding: 0.5rem 0;
+}
+
+.vacio {
+  text-align: center;
+  color: var(--texto-tenue);
+  font-size: 0.9rem;
+  margin-top: 3rem;
+}
+
+.oculto {
+  display: none;
+}

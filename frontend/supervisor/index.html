@@ -2,33 +2,45 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Panel de Supervisor - QA Monitor</title>
-  <style>
-    body { font-family: sans-serif; background: #0d0d0d; color: #eee; padding: 1.5rem; }
-    h2 { margin-bottom: 0.25rem; }
-    #estado { color: #9ad; margin-bottom: 1rem; }
-    .evento { padding: 0.5rem 0.75rem; border-left: 4px solid #444; margin-bottom: 0.4rem; background: #1a1a1a; border-radius: 4px; }
-    .alerta_postura { border-left-color: #e74c3c; }
-    .alerta_lenguaje { border-left-color: #e67e22; }
-    .alerta_expresion { border-left-color: #9b59b6; }
-    .transcripcion { border-left-color: #3498db; }
-    .conexion { border-left-color: #2ecc71; }
-    .desconexion { border-left-color: #999; }
-    .meta { font-size: 0.75rem; color: #888; }
-    .acciones { margin-top: 0.4rem; display: flex; gap: 0.5rem; }
-    .btn-veredicto {
-      font-size: 0.75rem; padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid #444;
-      background: transparent; color: #ddd; cursor: pointer; font-family: inherit;
-    }
-    .btn-confirmar:hover { border-color: #e74c3c; color: #e74c3c; }
-    .btn-descartar:hover { border-color: #2ecc71; color: #2ecc71; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panel de Supervisor</title>
+  <link rel="stylesheet" href="style.css?v=1" />
 </head>
 <body>
-  <h2>Panel de Supervisor</h2>
-  <div id="estado">Conectando...</div>
-  <div id="eventos"></div>
+  <header class="encabezado">
+    <div class="titulo">
+      <h1>Control de calidad</h1>
+      <span class="subtitulo">Monitoreo en vivo por estación</span>
+    </div>
+    <div class="estado" id="estado">
+      <span class="punto" id="punto"></span>
+      <span id="estadoTexto">Conectando…</span>
+    </div>
+  </header>
 
-  <script src="client.js?v=3"></script>
+  <section class="resumen" id="resumen">
+    <div class="tarjeta-resumen">
+      <span class="valor" id="statEstaciones">0</span>
+      <span class="etiqueta">Estaciones activas</span>
+    </div>
+    <div class="tarjeta-resumen">
+      <span class="valor" id="statAlertas">0</span>
+      <span class="etiqueta">Alertas hoy</span>
+    </div>
+    <div class="tarjeta-resumen">
+      <span class="valor" id="statPendientes">0</span>
+      <span class="etiqueta">Sin revisar</span>
+    </div>
+    <div class="tarjeta-resumen">
+      <span class="valor" id="statTranscripciones">0</span>
+      <span class="etiqueta">Frases transcritas</span>
+    </div>
+  </section>
+
+  <main class="grid-estaciones" id="grid"></main>
+
+  <p class="vacio oculto" id="vacio">Todavía no se ha conectado ninguna estación.</p>
+
+  <script src="client.js?v=4"></script>
 </body>
 </html>
