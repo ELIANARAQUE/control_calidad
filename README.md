@@ -67,11 +67,13 @@ ControlCalidad/
   sobre el texto ya transcrito por Whisper, con groserías/modismos colombianos — dejando fuera
   a propósito palabras ambiguas (ej. "chimba", "arrecho") que en Colombia se usan tanto en
   sentido positivo como ofensivo según el contexto.
-- **Alertas guardadas en SQLite** ([db.py](backend/app/core/db.py)), con un `tipo`
-  ('postura' / 'expresion' / 'lenguaje') y un veredicto pendiente que el supervisor marca
-  como "real" o "falsa alarma" desde el panel. No es solo auditoría: es el dataset etiquetado
-  que hace falta para, más adelante, entrenar modelos propios (temporal para postura/expresión,
-  clasificador de toxicidad para lenguaje) y dejar de depender de heurísticas de umbral.
+- **Todo se persiste en SQLite** ([db.py](backend/app/core/db.py), `backend/data/eventos.db`),
+  no solo se transmite en vivo: antes, si nadie tenía el panel de supervisor abierto en el
+  momento, esa información se perdía para siempre. Tres tablas: `alertas` (con un `tipo` —
+  'postura' / 'expresion' / 'lenguaje' — y un veredicto pendiente que el supervisor marca
+  como "real" o "falsa alarma" desde el panel; es el dataset etiquetado para, más adelante,
+  entrenar modelos propios), `transcripciones` (todo lo que Whisper transcribió) y
+  `eventos_conexion` (historial de cuándo entró/salió cada estación).
 
 ## Requisitos previos
 
@@ -124,9 +126,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
    `iceServers: []` (como está ahora) solo funciona si no hay NAT/firewall entre medio.
 3. **Autenticación básica en `/api/offer` y `/ws/supervisor`** (por ejemplo, token compartido
    por estación) — ahora mismo cualquiera en la red podría conectar una "estación" falsa.
-4. **Persistencia de alertas/transcripciones.** Hoy el `BusAlertas` solo transmite en vivo;
-   si necesitas auditoría histórica, agrega SQLite (para este volumen no hace falta Postgres)
-   y guarda cada evento antes de emitirlo.
+4. **Panel de historial sobre la base de datos.** Los datos ya se guardan (ver arriba), pero
+   hoy solo se pueden consultar abriendo `eventos.db` directamente con un cliente SQLite —
+   falta un endpoint + vista en el panel de supervisor para navegar el historial por fecha/
+   estación en vez de solo ver lo que pasa en vivo.
 5. **Métrica de VRAM real por lote.** Antes de escalar a 10 cámaras concurrentes, mide con
    `nvidia-smi` cuánta VRAM consume 1 stream a 3 FPS + Whisper `small`, y ajusta
    `YOLO_TARGET_FPS` / `WHISPER_MODEL_SIZE` según el resultado (ver siguiente sección).

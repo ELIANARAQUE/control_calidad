@@ -8,6 +8,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.core.db import registrar_evento_conexion
 from app.core.state import EstacionInfo, bus_alertas, gestor_estaciones, nuevo_evento
 from app.services.webrtc.tracks import consumir_audio, consumir_video
 
@@ -44,13 +45,17 @@ async def recibir_oferta(oferta: OfertaWebRTC) -> RespuestaWebRTC:
     pc = RTCPeerConnection()
     _peer_connections.add(pc)
     info.peer_connection = pc
+    desconexion_ya_registrada = False
 
     @pc.on("connectionstatechange")
     async def _on_state_change() -> None:
+        nonlocal desconexion_ya_registrada
         logger.info("Estacion %s -> estado conexion: %s", estacion_id, pc.connectionState)
-        if pc.connectionState in ("failed", "closed", "disconnected"):
+        if pc.connectionState in ("failed", "closed", "disconnected") and not desconexion_ya_registrada:
+            desconexion_ya_registrada = True  # el estado puede pasar por varios de estos seguidos
             await gestor_estaciones.liberar(estacion_id)
             _peer_connections.discard(pc)
+            registrar_evento_conexion(estacion_id, oferta.empleado_nombre, "desconexion")
             await bus_alertas.emitir(nuevo_evento(estacion_id, "desconexion", {"empleado": oferta.empleado_nombre}))
 
     @pc.on("track")
@@ -69,6 +74,7 @@ async def recibir_oferta(oferta: OfertaWebRTC) -> RespuestaWebRTC:
     respuesta = await pc.createAnswer()
     await pc.setLocalDescription(respuesta)
 
+    registrar_evento_conexion(estacion_id, oferta.empleado_nombre, "conexion")
     await bus_alertas.emitir(nuevo_evento(estacion_id, "conexion", {"empleado": oferta.empleado_nombre}))
 
     return RespuestaWebRTC(

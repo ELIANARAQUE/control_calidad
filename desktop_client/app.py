@@ -10,6 +10,8 @@ Pensado para arrancar automaticamente al iniciar sesion en Windows (ver
 `instalar_autoarranque.py`).
 """
 import json
+import logging
+import sys
 import threading
 import uuid
 from pathlib import Path
@@ -19,13 +21,29 @@ import pystray
 import webview
 
 from icono import crear_icono
+from instalar_autoarranque import asegurar_autoarranque
 
-RUTA_CONFIG = Path(__file__).parent / "config.json"
+logger = logging.getLogger(__name__)
 
-# Guardado junto al programa (no en el cache del WebView, que puede limpiarse o vivir en
-# otro perfil): identifica ESTE puesto de trabajo de forma estable entre reinicios del
-# programa. Se genera una sola vez, la primera vez que corre en este PC.
-RUTA_ID_ESTACION = Path(__file__).parent / "estacion_id.txt"
+
+def _directorio_programa() -> Path:
+    """Carpeta donde vive el programa de verdad -para leer/guardar archivos junto a el-.
+
+    Importante bajo PyInstaller --onefile: `Path(__file__).parent` apuntaria a la carpeta
+    temporal donde se descomprime el .exe en cada arranque (se borra despues), NO a donde
+    esta el .exe. Ahi `config.json` no se podria editar por PC sin recompilar. Se usa
+    `sys.executable` (la ruta del .exe) cuando esta empaquetado, y `__file__` en desarrollo.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+
+RUTA_CONFIG = _directorio_programa() / "config.json"
+
+# Respaldo si no se puede leer el identificador de Windows (ver obtener_id_estacion_persistente):
+# un id generado una sola vez y guardado junto al programa.
+RUTA_ID_ESTACION = _directorio_programa() / "estacion_id.txt"
 
 
 def cargar_config() -> dict:
@@ -33,7 +51,33 @@ def cargar_config() -> dict:
         return json.load(f)
 
 
+def _machine_guid_de_windows() -> str | None:
+    """Windows genera un identificador unico por instalacion (MachineGuid) que ya vive en
+    el registro de cada equipo -no hay que generarlo ni copiarlo nosotros-. Usarlo evita
+    por completo el problema de "si copio la carpeta a otro PC, comparten id": cada
+    Windows tiene el suyo, sin importar que archivos se hayan copiado.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography") as clave:
+            valor, _ = winreg.QueryValueEx(clave, "MachineGuid")
+            return valor
+    except OSError:
+        logger.warning("No se pudo leer el MachineGuid de Windows; se usara un id de respaldo en disco")
+        return None
+
+
 def obtener_id_estacion_persistente() -> str:
+    guid_maquina = _machine_guid_de_windows()
+    if guid_maquina:
+        return f"pc-{guid_maquina}"
+
+    # Respaldo (equipos no-Windows, o si por algun motivo no se pudo leer el registro):
+    # un id generado una sola vez y guardado en disco junto al programa. Ojo: a diferencia
+    # del MachineGuid, ESTE si viaja si se copia la carpeta ya usada a otro equipo.
     if RUTA_ID_ESTACION.exists():
         id_guardado = RUTA_ID_ESTACION.read_text(encoding="utf-8").strip()
         if id_guardado:
@@ -60,6 +104,14 @@ def construir_url(config: dict) -> str:
 
 
 def main() -> None:
+    try:
+        asegurar_autoarranque()
+    except Exception:
+        # Que falle el auto-arranque no debe impedir que el programa abra: en el peor
+        # caso, alguien tiene que abrirlo a mano una vez y ya (o correr el instalador
+        # de nuevo con permisos distintos).
+        logger.exception("No se pudo configurar el auto-arranque automaticamente")
+
     config = cargar_config()
 
     ventana = webview.create_window(

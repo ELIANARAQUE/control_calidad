@@ -14,7 +14,7 @@ import av
 import numpy as np
 
 from app.core.config import settings
-from app.core.db import registrar_alerta
+from app.core.db import registrar_alerta, registrar_transcripcion
 from app.core.state import bus_alertas, nuevo_evento
 from app.services.emocion.detector import EMOCIONES_NEGATIVAS, DetectorEmocion, recortar_cara
 from app.services.stt.lenguaje import contiene_lenguaje_inapropiado
@@ -198,6 +198,7 @@ async def consumir_audio(track, estacion_id: str) -> None:
         if not texto:
             continue
 
+        registrar_transcripcion(estacion_id, texto)
         await bus_alertas.emitir(nuevo_evento(estacion_id, "transcripcion", {"texto": texto}))
 
         palabra_detectada = contiene_lenguaje_inapropiado(texto)
