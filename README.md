@@ -55,11 +55,14 @@ ControlCalidad/
   confianza, y exige 2 pares consecutivos por encima del umbral para filtrar ruido de un
   solo frame — pero SÍ reacciona a un gesto breve aunque la persona vuelva enseguida a su
   posición de reposo (a diferencia de promediar toda la ventana, que lo "cancelaría").
-- **Expresión facial (FER+)** ([emocion/detector.py](backend/app/services/emocion/detector.py)):
-  segundo modelo, liviano (~34MB, ONNX, corre en CPU sin competir por VRAM), que reutiliza los
-  keypoints de nariz/ojos que YOLO-pose ya calcula para recortar la cara — no hace falta un
-  detector de cara aparte. Alerta cuando "enojo/disgusto/desprecio" supera el umbral de
-  probabilidad, con el mismo debounce + cooldown que la heurística de postura.
+- **Expresión facial (HSEmotion)** ([emocion/detector.py](backend/app/services/emocion/detector.py)):
+  segundo modelo, liviano (~15MB, ONNX, corre en CPU sin competir por VRAM), entrenado sobre
+  AffectNet (caras reales, no actuadas en laboratorio como el FER+ clásico) — es el estándar
+  actual para reconocimiento de emoción facial liviano. Reutiliza los keypoints de nariz/ojos
+  que YOLO-pose ya calcula para recortar la cara, sin detector de cara aparte. Alerta cuando
+  "enojo/disgusto/desprecio" supera el umbral de probabilidad, con el mismo debounce + cooldown
+  que la heurística de postura. El modelo se descarga solo a `~/.hsemotion/` la primera vez
+  que arranca el servidor (requiere internet esa única vez).
 - **Lenguaje inapropiado por palabras clave** ([lenguaje.py](backend/app/services/stt/lenguaje.py))
   sobre el texto ya transcrito por Whisper, con groserías/modismos colombianos — dejando fuera
   a propósito palabras ambiguas (ej. "chimba", "arrecho") que en Colombia se usan tanto en
@@ -74,16 +77,15 @@ ControlCalidad/
 
 - Python 3.10+ en el servidor con GPU NVIDIA (drivers CUDA instalados).
 - `ffmpeg` instalado en el servidor (lo usa `av`/aiortc para decodificar).
-- Descargar los modelos y colocarlos en `models/` (no se versionan en git, ver `.gitignore`):
+- Descargar el modelo de pose y colocarlo en `models/` (no se versiona en git, ver `.gitignore`):
   ```bash
-  # Pose (YOLO) - Ultralytics lo descarga solo si se deja solo el nombre, pero para
-  # control de version explicito:
+  # Ultralytics lo descarga solo si se deja solo el nombre, pero para control de
+  # version explicito:
   python -c "from ultralytics import YOLO; YOLO('yolov8n-pose.pt')"
   # mover el .pt resultante a models/yolov8n-pose.pt
-
-  # Expresion facial (FER+, ONNX, ~34MB)
-  curl -L -o models/emotion-ferplus-8.onnx "https://github.com/onnx/models/raw/main/validated/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx"
   ```
+  El modelo de expresión facial (HSEmotion) no requiere este paso: se descarga solo a
+  `~/.hsemotion/` la primera vez que arranca el servidor.
 
 ## Instalación
 

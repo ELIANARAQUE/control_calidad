@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     yolo_ventana_frames: int = 5  # cuantos frames recientes se mantienen en el buffer de contexto
     yolo_alerta_cooldown_segundos: float = 8.0  # tiempo minimo entre alertas repetidas de la misma estacion
 
-    # --- Expresion facial (FER+) ---
+    # --- Expresion facial (HSEmotion, entrenado sobre AffectNet) ---
     emocion_habilitada: bool = True
-    emocion_modelo_path: str = "../models/emotion-ferplus-8.onnx"
+    emocion_modelo_hsemotion: str = "enet_b0_8_best_afew"  # se descarga solo a ~/.hsemotion/ la primera vez
     emocion_confianza_minima_keypoints: float = 0.4  # nariz/ojos suelen tener algo menos de confianza que hombros
-    emocion_umbral_probabilidad: float = 0.55  # que tan segura debe estar la clasificacion para contar
+    emocion_umbral_probabilidad: float = 0.4  # HSEmotion tiende a repartir mas probabilidad entre clases que FER+
     emocion_frames_consecutivos: int = 2  # exige varias detecciones seguidas antes de alertar
     emocion_cooldown_segundos: float = 10.0  # tiempo minimo entre alertas repetidas de la misma estacion
 

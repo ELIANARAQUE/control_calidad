@@ -11,11 +11,15 @@ opencv-python-headless==4.10.0.84
 torch==2.4.1
 torchvision==0.19.1
 
-# Expresion facial (FER+)
+# Expresion facial (HSEmotion, entrenado sobre AffectNet)
 onnxruntime==1.30.0
+hsemotion-onnx==0.3.1
 
 # Audio / STT
 faster-whisper==1.0.3
+
+# hsemotion-onnx arrastra una version de numpy 2.x que rompe a ultralytics
+# (requiere <2.0.0): se fija despues, en la ultima linea, para que gane esta.
 numpy==1.26.4
 
 # Utilidades
