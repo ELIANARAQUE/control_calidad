@@ -13,6 +13,10 @@ cada PC-. En ese primer arranque:
   2. Se registra para abrir solo en el proximo inicio de sesion de Windows.
   3. Identifica el puesto usando el MachineGuid que Windows ya genera por instalacion
      (no un archivo que se pueda copiar por error entre PCs).
+  4. Levanta un proxy local (ver proxy_local.py) para que la pagina se cargue desde
+     "localhost" en vez de la IP del servidor -asi la camara/microfono funcionan dentro
+     de WebView2, que como cualquier navegador moderno los bloquea fuera de un "contexto
+     seguro" (HTTPS o localhost)-.
 
 Se ejecuta en segundo plano con icono en la bandeja del sistema: cerrar la ventana la
 minimiza (no termina el proceso), y solo "Salir" desde el icono de bandeja lo detiene.
@@ -26,13 +30,14 @@ import sys
 import threading
 import uuid
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import pystray
 import webview
 
 from icono import crear_icono
 from instalar_autoarranque import asegurar_autoarranque
+from proxy_local import iniciar_proxy_local
 
 logger = logging.getLogger(__name__)
 
@@ -133,10 +138,16 @@ def obtener_id_estacion_persistente() -> str:
 def construir_url(config: dict) -> str:
     """Agrega el id de estacion (y el nombre del empleado, si esta preconfigurado en
     config.json) como parametros de URL, para que el frontend los use en vez de generar
-    o pedir esos datos el mismo."""
+    o pedir esos datos el mismo. Carga la pagina a traves del proxy local (ver
+    proxy_local.py) en vez de la IP del servidor directo, para que la camara/microfono
+    funcionen dentro de WebView2 (exigen un "contexto seguro": HTTPS o localhost).
+    """
+    servidor_original = urlparse(config["servidor_url"])
+    base_local = iniciar_proxy_local(config["servidor_url"])
+    ruta = servidor_original.path or "/empleado/"
+
     estacion_id = obtener_id_estacion_persistente()
-    separador = "&" if "?" in config["servidor_url"] else "?"
-    url = f'{config["servidor_url"]}{separador}estacion_id={estacion_id}'
+    url = f"{base_local}{ruta}?estacion_id={estacion_id}"
 
     nombre_empleado = config.get("empleado_nombre", "").strip()
     if nombre_empleado:

@@ -1,5 +1,5 @@
 {
-  "servidor_url": "http://192.168.1.10:8000/empleado/",
+  "servidor_url": "http://192.168.40.28:8000/empleado/",
   "titulo_ventana": "Monitor de estación",
   "empleado_nombre": "",
   "ancho": 420,
