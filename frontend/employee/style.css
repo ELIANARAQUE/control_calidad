@@ -1,154 +1,49 @@
-/* Diseño limpio y moderno: tipografía del sistema, paleta neutra, un solo acento.
-   Se evita deliberadamente el look "IA genérica" (degradados morados, glassmorphism, neón). */
-
-:root {
-  --fondo: #f5f4f1;
-  --superficie: #ffffff;
-  --borde: #e4e2dc;
-  --texto: #1c1b19;
-  --texto-tenue: #6f6c65;
-  --acento: #1f5f4f;
-  --acento-suave: #eaf1ee;
-  --peligro: #b3441f;
-  --radio: 10px;
-}
-
-* {
-  box-sizing: border-box;
-}
+/* Complementa Tailwind (CDN, ver index.html) con lo que no cubren sus utilidades directamente. */
 
 body {
-  margin: 0;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--fondo);
-  color: var(--texto);
-  font-family: -apple-system, "Segoe UI", "Inter", system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  font-family: "Manrope", -apple-system, "Segoe UI", system-ui, sans-serif;
 }
 
-.tarjeta {
-  width: 380px;
-  max-width: 90vw;
-  background: var(--superficie);
-  border: 1px solid var(--borde);
-  border-radius: var(--radio);
-  padding: 2rem;
+.font-headline-lg, .font-headline-md, .font-headline-sm {
+  font-family: "Space Grotesk", "Manrope", sans-serif;
 }
 
-.encabezado {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
+.font-label-sm, .font-label-md {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
 }
 
-.encabezado h1 {
-  font-size: 1.05rem;
-  font-weight: 600;
-  margin: 0;
-  letter-spacing: -0.01em;
-}
+.oculto { display: none !important; }
 
-.punto {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--texto-tenue);
-  flex-shrink: 0;
-}
-
-.punto.conectado { background: var(--acento); }
-.punto.error { background: var(--peligro); }
-
-.subtitulo {
-  font-size: 0.85rem;
-  color: var(--texto-tenue);
-  margin: 0.5rem 0 1.5rem;
-  line-height: 1.4;
-}
-
-.config, .activo {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-label {
-  font-size: 0.78rem;
-  color: var(--texto-tenue);
-  font-weight: 500;
-}
-
-input {
-  border: 1px solid var(--borde);
-  border-radius: 8px;
-  padding: 0.65rem 0.75rem;
-  font-size: 0.9rem;
-  font-family: inherit;
-  color: var(--texto);
-  background: var(--fondo);
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-input:focus {
-  border-color: var(--acento);
-}
+.punto.conectado { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3); }
+.punto.error { background: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3); }
 
 .boton {
-  border: none;
-  border-radius: 8px;
-  padding: 0.7rem 1rem;
-  font-size: 0.88rem;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  background: var(--acento);
+  background: #2563eb;
   color: #fff;
-  transition: opacity 0.15s ease;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  border-radius: 0.625rem;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
-
-.boton:hover { opacity: 0.9; }
+.boton:hover { background: #1d4ed8; }
 .boton:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .boton-secundario {
-  background: transparent;
-  color: var(--peligro);
-  border: 1px solid var(--borde);
+  background: #fee2e2;
+  color: #b91c1c;
 }
-
-.fila {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--borde);
-}
-
-.etiqueta { color: var(--texto-tenue); }
-.valor { font-weight: 600; }
-
-.vista-previa {
-  width: 100%;
-  border-radius: 8px;
-  background: #0c0c0b;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  margin: 0.25rem 0;
-}
-
-.oculto {
-  display: none;
-}
+.boton-secundario:hover { background: #fecaca; }
 
 .pie {
-  margin-top: 1.75rem;
-  font-size: 0.72rem;
-  color: var(--texto-tenue);
-  line-height: 1.4;
-  border-top: 1px solid var(--borde);
-  padding-top: 1rem;
+  color: #8890a0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  max-width: 42rem;
+  margin: 0 auto;
+}
+
+#video, #videoPreview {
+  background: #0b1c30;
 }

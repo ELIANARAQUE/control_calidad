@@ -4,7 +4,7 @@ con el 'answer', siguiendo el patron estandar de aiortc para servidores WebRTC e
 import logging
 import uuid
 
-from aiortc import RTCPeerConnection, RTCSessionDescription
+from aiortc import RTCConfiguration, RTCIceServer, RTCPeerConnection, RTCSessionDescription
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -18,12 +18,38 @@ router = APIRouter()
 # Se mantienen referencias activas para que Python no las recolecte como basura
 _peer_connections: set[RTCPeerConnection] = set()
 
+# Necesario en cuanto la estacion de empleado deja de estar en la misma LAN que el servidor
+# (ej. accediendo por un tunel/IP publica): sin un STUN, aiortc solo ofrece su IP privada
+# como candidato ICE, que nadie fuera de la red local puede alcanzar. Si tras esto algunas
+# redes muy restrictivas (NAT simetrico, firewalls corporativos estrictos) siguen sin poder
+# transmitir video, el siguiente paso es montar un servidor TURN (ej. coturn) y agregarlo aqui.
+_CONFIGURACION_ICE = RTCConfiguration(iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")])
+
+
+def _log_seccion_sdp(estacion_id: str, etiqueta: str, sdp: str, kind: str) -> None:
+    """DEBUG temporal: imprime solo el bloque `m=<kind> ...` de un SDP (hasta el siguiente
+    `m=` o el final), para no llenar el log con el SDP completo."""
+    lineas = sdp.splitlines()
+    bloque: list[str] = []
+    dentro = False
+    for linea in lineas:
+        if linea.startswith(f"m={kind}"):
+            dentro = True
+        elif linea.startswith("m=") and dentro:
+            break
+        if dentro:
+            bloque.append(linea)
+    logger.info("[debug-sdp] estacion %s: %s -> %s", estacion_id, etiqueta, "\n".join(bloque) or "(no tiene seccion de %s)" % kind)
+
 
 class OfertaWebRTC(BaseModel):
     sdp: str
     type: str
     empleado_nombre: str
     estacion_id: str | None = None
+    sede: str | None = None
+    modulo: str | None = None
+    acepto_habeas_data: bool = False
 
 
 class RespuestaWebRTC(BaseModel):
@@ -35,14 +61,25 @@ class RespuestaWebRTC(BaseModel):
 @router.post("/offer", response_model=RespuestaWebRTC)
 async def recibir_oferta(oferta: OfertaWebRTC) -> RespuestaWebRTC:
     """Cada estacion de empleado llama a este endpoint una vez al iniciar su sesion."""
+    if not oferta.acepto_habeas_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Debe aceptar el aviso de tratamiento de datos (Ley 1581 de 2012) antes de iniciar el monitoreo",
+        )
+
     estacion_id = oferta.estacion_id or str(uuid.uuid4())
 
-    info = EstacionInfo(estacion_id=estacion_id, empleado_nombre=oferta.empleado_nombre)
+    info = EstacionInfo(
+        estacion_id=estacion_id,
+        empleado_nombre=oferta.empleado_nombre,
+        sede=oferta.sede,
+        modulo=oferta.modulo,
+    )
     admitido = await gestor_estaciones.registrar(info)
     if not admitido:
         raise HTTPException(status_code=503, detail="Capacidad maxima de estaciones concurrentes alcanzada")
 
-    pc = RTCPeerConnection()
+    pc = RTCPeerConnection(configuration=_CONFIGURACION_ICE)
     _peer_connections.add(pc)
     info.peer_connection = pc
     desconexion_ya_registrada = False
@@ -68,14 +105,34 @@ async def recibir_oferta(oferta: OfertaWebRTC) -> RespuestaWebRTC:
             import asyncio
             asyncio.ensure_future(consumir_audio(track, estacion_id))
 
+    # DEBUG temporal: aisla justo la seccion de audio del SDP (offer del navegador y answer
+    # del servidor) para ver si aiortc esta rechazando el audio en la negociacion (se veria
+    # como "m=audio 0 ..." -puerto 0- en el answer) en vez de solo fallar en silencio despues.
+    _log_seccion_sdp(estacion_id, "OFFER (navegador)", oferta.sdp, "audio")
+
     oferta_sdp = RTCSessionDescription(sdp=oferta.sdp, type=oferta.type)
     await pc.setRemoteDescription(oferta_sdp)
 
     respuesta = await pc.createAnswer()
     await pc.setLocalDescription(respuesta)
 
-    registrar_evento_conexion(estacion_id, oferta.empleado_nombre, "conexion")
-    await bus_alertas.emitir(nuevo_evento(estacion_id, "conexion", {"empleado": oferta.empleado_nombre}))
+    _log_seccion_sdp(estacion_id, "ANSWER (servidor)", pc.localDescription.sdp, "audio")
+
+    registrar_evento_conexion(
+        estacion_id,
+        oferta.empleado_nombre,
+        "conexion",
+        sede=oferta.sede,
+        modulo=oferta.modulo,
+        acepto_habeas_data=oferta.acepto_habeas_data,
+    )
+    await bus_alertas.emitir(
+        nuevo_evento(
+            estacion_id,
+            "conexion",
+            {"empleado": oferta.empleado_nombre, "sede": oferta.sede, "modulo": oferta.modulo},
+        )
+    )
 
     return RespuestaWebRTC(
         sdp=pc.localDescription.sdp,

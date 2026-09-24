@@ -1,44 +1,345 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Estación de trabajo</title>
-  <link rel="stylesheet" href="style.css?v=3" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Estación de Empleado</title>
+<meta name="description" content="Estación de atención — telemetría de calidad institucional" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        "primary": "#2563eb", "on-primary": "#ffffff",
+        "primary-container": "#0f1d38", "on-primary-container": "#c3ccdd",
+        "secondary": "#0f9d68", "secondary-container": "#10b981", "on-secondary-container": "#00220f",
+        "tertiary-container": "#0b1c30",
+        "error": "#dc2626", "on-error": "#ffffff", "error-container": "#fee2e2", "on-error-container": "#7f1d1d",
+        "surface": "#f4f6fb", "on-surface": "#0f1c30", "on-surface-variant": "#586174",
+        "surface-container-lowest": "#ffffff", "surface-container-low": "#eef1f8",
+        "surface-container": "#e4e9f4", "surface-container-high": "#d8e0ef", "surface-container-highest": "#cbd6ea",
+        "outline": "#8890a0",
+      },
+      borderRadius: { DEFAULT: "0.375rem", lg: "0.625rem", xl: "0.9rem", full: "9999px" },
+      spacing: { "space-xs": "0.35rem", "space-sm": "0.6rem", "space-md": "1rem", "space-lg": "1.5rem", "space-xl": "2.25rem" },
+      fontFamily: {
+        "headline-lg": ["Space Grotesk"], "headline-md": ["Space Grotesk"], "headline-sm": ["Space Grotesk"],
+        "body-md": ["Manrope"], "body-sm": ["Manrope"],
+        "label-sm": ["JetBrains Mono"], "label-md": ["JetBrains Mono"],
+      },
+      fontSize: {
+        "headline-lg": ["26px", { lineHeight: "34px", fontWeight: "700" }],
+        "headline-md": ["19px", { lineHeight: "26px", fontWeight: "700" }],
+        "headline-sm": ["15px", { lineHeight: "22px", fontWeight: "700" }],
+        "body-md": ["13.5px", { lineHeight: "20px", fontWeight: "400" }],
+        "body-sm": ["12px", { lineHeight: "18px", fontWeight: "400" }],
+        "label-md": ["11.5px", { lineHeight: "16px", fontWeight: "600" }],
+        "label-sm": ["10px", { lineHeight: "14px", fontWeight: "600" }],
+      },
+    },
+  },
+};
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" />
+<link rel="stylesheet" href="style.css?v=5" />
 </head>
-<body>
-  <main class="tarjeta">
-    <header class="encabezado">
-      <span class="punto" id="punto"></span>
-      <h1>Monitor de estación</h1>
-    </header>
+<body class="bg-surface font-body-md text-body-md text-on-surface antialiased min-h-screen">
 
-    <p class="subtitulo" id="subtitulo">Preparando la conexión con el servidor…</p>
+<header class="h-16 bg-primary-container text-white flex items-center justify-between px-space-lg shadow-sm">
+  <div class="flex items-center gap-space-sm min-w-0">
+    <div class="w-9 h-9 rounded-lg bg-secondary-container flex items-center justify-center shrink-0">
+      <span class="material-symbols-outlined text-primary-container text-[22px]">shield</span>
+    </div>
+    <div class="flex flex-col min-w-0">
+      <span class="font-headline-sm text-headline-sm leading-tight truncate">Estación de Atención</span>
+      <span class="font-label-sm text-label-sm text-white/60 uppercase tracking-wider">Universitaria de Colombia</span>
+    </div>
+  </div>
+  <div class="flex items-center gap-space-sm shrink-0">
+    <span class="punto w-2.5 h-2.5 rounded-full bg-outline shrink-0" id="punto"></span>
+    <a class="font-label-sm text-label-sm text-white/70 hover:text-white transition-colors whitespace-nowrap" href="/supervisor/">Panel de Supervisor →</a>
+  </div>
+</header>
+<div class="bg-surface-container-low border-b border-surface-container-high px-space-lg py-space-xs">
+  <p class="font-body-sm text-body-sm text-on-surface-variant max-w-4xl mx-auto text-center" id="subtitulo">Preparando conexión…</p>
+</div>
 
-    <section class="config" id="config">
-      <label for="nombreEmpleado">Nombre del empleado</label>
-      <input id="nombreEmpleado" type="text" placeholder="Ej. Laura Gómez" autocomplete="off" />
-      <button id="btnIniciar" class="boton">Iniciar sesión de monitoreo</button>
-    </section>
+<div class="oculto fixed top-20 right-4 z-[100] max-w-sm bg-secondary-container text-on-secondary-container px-space-md py-space-sm rounded-lg shadow-lg flex items-start gap-space-sm" id="banner-aviso">
+  <span class="material-symbols-outlined text-[20px] shrink-0">campaign</span>
+  <div class="flex flex-col">
+    <span class="font-label-md text-label-md font-bold">Aviso del supervisor</span>
+    <span class="font-body-sm text-body-sm" id="banner-aviso-texto"></span>
+  </div>
+</div>
 
-    <section class="activo oculto" id="seccionActivo">
-      <div class="fila">
-        <span class="etiqueta">Empleado</span>
-        <span class="valor" id="nombreActivo">—</span>
+<main class="max-w-6xl mx-auto p-space-lg lg:p-space-xl flex flex-col gap-space-lg">
+
+  <!-- ===================== PASO 1: CONFIGURACIÓN / HABEAS DATA ===================== -->
+  <section class="config flex flex-col gap-space-lg" id="config">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+      <div class="lg:col-span-7 bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col gap-space-md">
+        <div class="flex items-center justify-between">
+          <span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Paso 1 // Datos de la sesión</span>
+        </div>
+        <h1 class="font-headline-md text-headline-md text-on-surface">Ingreso a la Estación de Trabajo</h1>
+        <p class="font-body-sm text-body-sm text-on-surface-variant">Registra tu nombre y tu puesto para habilitar la telemetría de calidad de servicio.</p>
+
+        <div class="flex flex-col gap-space-xs">
+          <label class="font-label-md text-label-md text-on-surface font-semibold" for="nombreEmpleado">Nombre completo</label>
+          <div class="relative flex items-center">
+            <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute left-space-md pointer-events-none">person</span>
+            <input class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md pl-11 pr-space-md py-space-sm rounded-lg focus:outline-none focus:bg-white focus:shadow-md transition-all placeholder:text-outline" id="nombreEmpleado" placeholder="Ej. Laura Gómez" type="text" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+          <div class="flex flex-col gap-space-xs">
+            <label class="font-label-md text-label-md text-on-surface font-semibold" for="sedeSelect">Sede o modalidad</label>
+            <div class="relative flex items-center">
+              <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute left-space-md pointer-events-none">apartment</span>
+              <select class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md pl-11 pr-8 py-space-sm rounded-lg focus:outline-none appearance-none cursor-pointer" id="sedeSelect">
+                <option value="Sede Principal">Sede Principal</option>
+                <option value="Campus Norte">Campus Norte</option>
+                <option value="Atención Virtual">Atención Virtual</option>
+              </select>
+              <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute right-space-sm pointer-events-none">expand_more</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-space-xs">
+            <label class="font-label-md text-label-md text-on-surface font-semibold" for="moduloSelect">Módulo / ventanilla</label>
+            <div class="relative flex items-center">
+              <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute left-space-md pointer-events-none">desktop_windows</span>
+              <select class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md pl-11 pr-8 py-space-sm rounded-lg focus:outline-none appearance-none cursor-pointer" id="moduloSelect">
+                <option value="Admisiones y Registro">Admisiones y Registro</option>
+                <option value="Financiera y Crédito">Financiera y Crédito</option>
+                <option value="Soporte Técnico">Soporte Técnico</option>
+                <option value="Bienestar Universitario">Bienestar Universitario</option>
+              </select>
+              <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute right-space-sm pointer-events-none">expand_more</span>
+            </div>
+          </div>
+        </div>
+
+        <label class="flex items-start gap-space-sm cursor-pointer select-none pt-space-xs">
+          <input class="w-4 h-4 rounded accent-secondary mt-1 shrink-0" id="checkHabeasData" type="checkbox" />
+          <span class="font-body-sm text-body-sm text-on-surface-variant">
+            He leído y acepto el <strong>Aviso de Tratamiento de Datos Personales</strong> (Ley 1581 de 2012) descrito a la derecha, y autorizo la captura de video y audio durante mi turno con fines exclusivos de mejora de la calidad del servicio.
+          </span>
+        </label>
+
+        <button class="boton w-full flex items-center justify-center gap-space-sm" id="btnIniciar" disabled>
+          <span class="material-symbols-outlined text-[20px]">login</span>
+          <span>Iniciar sesión de monitoreo</span>
+        </button>
       </div>
-      <div class="fila">
-        <span class="etiqueta">Estación</span>
-        <span class="valor" id="idEstacion">—</span>
+
+      <div class="lg:col-span-5 flex flex-col gap-space-md">
+        <div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col gap-space-md">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-space-xs">
+              <span class="material-symbols-outlined text-[20px] text-primary">tune</span>
+              <h3 class="font-headline-sm text-headline-sm text-on-surface">Verificación de Cámara y Micrófono</h3>
+            </div>
+          </div>
+          <div class="relative rounded-lg overflow-hidden bg-primary-container h-40 shadow-inner">
+            <video autoplay playsinline muted class="w-full h-full object-cover" id="videoPreview"></video>
+            <div class="absolute inset-0 flex items-center justify-center text-white/60 text-xs uppercase tracking-wider pointer-events-none" id="previewPlaceholder">
+              Esperando permiso de cámara…
+            </div>
+            <div class="absolute top-2 left-2 bg-black/50 backdrop-blur-md px-2 py-0.5 rounded text-white text-[10px] font-mono flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-error animate-pulse"></span> VISTA PREVIA
+            </div>
+          </div>
+          <div class="flex items-center justify-between p-space-sm rounded-lg bg-surface-container-low">
+            <div class="flex items-center gap-space-sm">
+              <span class="material-symbols-outlined text-[18px] text-primary">mic</span>
+              <span class="font-body-sm text-body-sm font-semibold text-on-surface">Nivel de micrófono</span>
+            </div>
+            <div class="flex items-end gap-0.5 h-5" id="barrasPreview">
+              <span class="w-1 bg-secondary-container rounded-t" style="height:20%"></span>
+              <span class="w-1 bg-secondary-container rounded-t" style="height:20%"></span>
+              <span class="w-1 bg-secondary-container rounded-t" style="height:20%"></span>
+              <span class="w-1 bg-secondary-container rounded-t" style="height:20%"></span>
+              <span class="w-1 bg-secondary-container rounded-t" style="height:20%"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-surface-container p-space-lg rounded-xl flex flex-col gap-space-sm">
+          <div class="flex items-center gap-space-xs text-primary-container">
+            <span class="material-symbols-outlined text-[20px] text-secondary">policy</span>
+            <h4 class="font-headline-sm text-headline-sm">Aviso de Tratamiento de Datos (Habeas Data)</h4>
+          </div>
+          <p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+            En cumplimiento de la <strong>Ley Estatutaria 1581 de 2012</strong> y el <strong>Decreto 1377 de 2013</strong> de la República de Colombia, este sistema captura video, audio y su transcripción exclusivamente para: (1) detectar palabras inapropiadas hacia estudiantes o compañeros, (2) identificar movimientos bruscos o posibles incidentes de seguridad, y (3) dar retroalimentación de calidad del servicio.
+          </p>
+          <ul class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed list-disc pl-space-md">
+            <li>Los datos son revisados únicamente por tu supervisor directo.</li>
+            <li>Tienes derecho a conocer, actualizar, rectificar y solicitar la supresión de tus datos.</li>
+            <li>La transmisión se hace dentro de la red institucional local, sin salir a internet público.</li>
+          </ul>
+        </div>
       </div>
-      <video id="video" autoplay playsinline muted class="vista-previa"></video>
-      <button id="btnDetener" class="boton boton-secundario">Finalizar sesión</button>
-    </section>
+    </div>
+  </section>
 
-    <footer class="pie">
-      Este equipo transmite video y audio de forma cifrada al servidor local de control de calidad.
-    </footer>
-  </main>
+  <!-- ===================== ESTADO ACTIVO / TELEMETRÍA ===================== -->
+  <section class="activo oculto flex flex-col gap-space-lg" id="seccionActivo">
+    <div class="bg-primary-container text-white rounded-xl shadow-xl p-space-lg relative overflow-hidden">
+      <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-space-md">
+        <div class="flex flex-col gap-space-xs">
+          <div class="flex items-center gap-space-xs flex-wrap">
+            <span class="px-space-sm py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-semibold tracking-wider uppercase">Sesión Activa</span>
+            <span class="font-label-sm text-label-sm text-white/70">Estación: <span id="idEstacion" class="font-mono">—</span></span>
+          </div>
+          <h1 class="font-headline-lg text-headline-lg" id="nombreActivo">—</h1>
+          <p class="font-body-sm text-body-sm text-white/70" id="sedeModuloActivo"></p>
+        </div>
+        <div class="flex flex-wrap items-center gap-space-xs bg-tertiary-container/80 backdrop-blur-md p-space-sm rounded-lg shadow-sm">
+          <div class="flex items-center gap-space-xs px-space-sm py-space-xs bg-white/10 rounded">
+            <span class="w-2.5 h-2.5 rounded-full bg-secondary-container animate-pulse"></span>
+            <div class="flex flex-col">
+              <span class="font-label-sm text-label-sm leading-tight">CÁMARA</span>
+              <span class="font-label-sm text-label-sm text-secondary-container">Activa</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-space-xs px-space-sm py-space-xs bg-white/10 rounded">
+            <span class="w-2.5 h-2.5 rounded-full bg-secondary-container animate-pulse"></span>
+            <div class="flex flex-col">
+              <span class="font-label-sm text-label-sm leading-tight">MICRÓFONO</span>
+              <span class="font-label-sm text-label-sm text-secondary-container">Transcribiendo</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-space-xs px-space-sm py-space-xs bg-white/10 rounded">
+            <span class="material-symbols-outlined text-[16px] text-secondary-container">schedule</span>
+            <div class="flex flex-col">
+              <span class="font-label-sm text-label-sm leading-tight">TIEMPO EN TURNO</span>
+              <span class="font-label-sm text-label-sm text-secondary-container font-mono" id="tiempoTurno">00:00:00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  <script src="client.js?v=3"></script>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+      <section class="lg:col-span-7 flex flex-col gap-space-md">
+        <div class="bg-surface-container-lowest rounded-xl shadow-md p-space-md flex flex-col gap-space-md">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-space-sm">
+              <span class="p-space-xs bg-surface-container-high rounded-lg text-primary"><span class="material-symbols-outlined text-[20px]">videocam</span></span>
+              <h2 class="font-headline-sm text-headline-sm text-on-surface">Cámara en vivo</h2>
+            </div>
+            <div class="flex items-center gap-space-xs px-space-sm py-0.5 rounded-full bg-error-container text-on-error-container">
+              <span class="w-2 h-2 rounded-full bg-error animate-pulse"></span>
+              <span class="font-label-sm text-label-sm font-semibold tracking-wider">EN VIVO</span>
+            </div>
+          </div>
+          <div class="relative w-full aspect-video rounded-lg overflow-hidden bg-primary shadow-inner">
+            <video autoplay playsinline muted class="w-full h-full object-cover" id="video"></video>
+            <div class="absolute top-space-sm left-space-sm right-space-sm flex items-center justify-between pointer-events-none">
+              <div class="bg-tertiary-container/85 backdrop-blur-md px-space-sm py-space-xs rounded font-label-sm text-label-sm text-white">Transmitiendo al servidor local</div>
+            </div>
+          </div>
+          <div class="bg-surface-container-low rounded-lg p-space-md flex flex-col sm:flex-row items-center justify-between gap-space-md">
+            <div class="flex items-center gap-space-sm w-full sm:w-auto">
+              <div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-secondary-container shrink-0">
+                <span class="material-symbols-outlined text-[22px]">mic</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="font-headline-sm text-headline-sm text-on-surface">Canal de Audio</span>
+                <span class="font-label-sm text-label-sm text-on-surface-variant">Nivel de entrada en tiempo real</span>
+              </div>
+            </div>
+            <div class="flex items-end gap-1.5 h-10 bg-surface-container-highest/40 px-space-md py-space-xs rounded-lg w-full sm:w-64 justify-center" id="ecualizador">
+              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
+              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
+              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
+              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
+              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
+              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
+              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
+              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lg:col-span-5 flex flex-col gap-space-md">
+        <div class="bg-surface-container-lowest rounded-xl shadow-md p-space-lg flex flex-col gap-space-md">
+          <span class="font-label-sm text-label-sm uppercase font-semibold text-secondary tracking-widest">Datos de la sesión</span>
+          <div class="grid grid-cols-2 gap-space-sm">
+            <div class="bg-surface-container p-space-sm rounded-lg flex flex-col">
+              <span class="font-label-sm text-label-sm text-on-surface-variant">Sede</span>
+              <span class="font-label-md text-label-md text-on-surface font-semibold" id="sedeActiva">—</span>
+            </div>
+            <div class="bg-surface-container p-space-sm rounded-lg flex flex-col">
+              <span class="font-label-sm text-label-sm text-on-surface-variant">Módulo</span>
+              <span class="font-label-md text-label-md text-on-surface font-semibold" id="moduloActivo">—</span>
+            </div>
+            <div class="bg-surface-container p-space-sm rounded-lg flex flex-col">
+              <span class="font-label-sm text-label-sm text-on-surface-variant">Filtro de lenguaje</span>
+              <span class="font-label-md text-label-md text-on-surface font-semibold" id="sensibilidadActiva">—</span>
+            </div>
+            <div class="bg-surface-container p-space-sm rounded-lg flex flex-col">
+              <span class="font-label-sm text-label-sm text-on-surface-variant">Estado</span>
+              <span class="font-label-md text-label-md text-secondary font-semibold">Transmitiendo</span>
+            </div>
+          </div>
+          <button class="boton boton-secundario w-full flex items-center justify-center gap-space-sm" id="btnDetener">
+            <span class="material-symbols-outlined text-[20px]">power_settings_new</span>
+            <span>Finalizar sesión</span>
+          </button>
+          <div class="flex items-start gap-space-xs pt-space-xs">
+            <span class="material-symbols-outlined text-secondary text-[18px] shrink-0 mt-0.5">verified</span>
+            <p class="font-label-sm text-label-sm text-on-surface-variant">
+              Autorizaste la captura de video y audio conforme a la Ley 1581 de 2012 al iniciar esta sesión.
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="bg-surface-container-lowest rounded-xl shadow-md p-space-lg flex flex-col gap-space-md">
+      <div class="flex items-center gap-space-sm">
+        <span class="p-space-xs bg-secondary-container/20 rounded-lg text-secondary"><span class="material-symbols-outlined text-[24px]">gavel</span></span>
+        <div>
+          <h3 class="font-headline-sm text-headline-sm text-on-surface">Protocolo de Calidad y Transparencia</h3>
+          <p class="font-body-sm text-body-sm text-on-surface-variant">Qué se mide y con qué propósito</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-space-md">
+        <div class="bg-surface-container-low p-space-md rounded-xl flex flex-col gap-space-xs">
+          <div class="flex items-center gap-space-sm">
+            <div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary"><span class="material-symbols-outlined text-[20px]">mic</span></div>
+            <h4 class="font-headline-sm text-headline-sm text-on-surface">Transcripción de Voz</h4>
+          </div>
+          <p class="font-body-sm text-body-sm text-on-surface-variant mt-space-xs">Convierte tu voz a texto para detectar lenguaje inapropiado. El audio no se comparte fuera de la red institucional.</p>
+        </div>
+        <div class="bg-surface-container-low p-space-md rounded-xl flex flex-col gap-space-xs">
+          <div class="flex items-center gap-space-sm">
+            <div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-secondary"><span class="material-symbols-outlined text-[20px]">security</span></div>
+            <h4 class="font-headline-sm text-headline-sm text-on-surface">Alerta de Lenguaje</h4>
+          </div>
+          <p class="font-body-sm text-body-sm text-on-surface-variant mt-space-xs">Detecta palabras inapropiadas y las marca para que tu supervisor las revise; tú puedes ver el resultado en tu bitácora.</p>
+        </div>
+        <div class="bg-surface-container-low p-space-md rounded-xl flex flex-col gap-space-xs">
+          <div class="flex items-center gap-space-sm">
+            <div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary"><span class="material-symbols-outlined text-[20px]">visibility</span></div>
+            <h4 class="font-headline-sm text-headline-sm text-on-surface">Postura y Gestos</h4>
+          </div>
+          <p class="font-body-sm text-body-sm text-on-surface-variant mt-space-xs">Detecta movimientos bruscos o expresiones de malestar, pensado como apoyo de bienestar, no de sanción automática.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="pie text-center py-space-md">
+    Este equipo transmite video y audio de forma cifrada al servidor local de control de calidad, dentro de la red institucional.
+  </footer>
+</main>
+
+<script src="client.js?v=7"></script>
 </body>
 </html>

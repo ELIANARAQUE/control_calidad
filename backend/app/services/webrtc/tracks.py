@@ -7,25 +7,67 @@ bloquear el event loop de FastAPI mientras la GPU procesa.
 import asyncio
 import logging
 import time
+import uuid
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 import av
 import numpy as np
 
 from app.core.config import settings
-from app.core.db import registrar_alerta, registrar_transcripcion
-from app.core.state import bus_alertas, nuevo_evento
+from app.core.db import RUTA_CAPTURAS, registrar_alerta, registrar_transcripcion
+from app.core.state import bus_alertas, config_tiempo_real, gestor_estaciones, nuevo_evento
 from app.services.emocion.detector import EMOCIONES_NEGATIVAS, DetectorEmocion, recortar_cara
 from app.services.stt.lenguaje import contiene_lenguaje_inapropiado
 from app.services.stt.transcriber import Transcriptor
-from app.services.yolo.detector import DetectorYOLO, LimitadorFPS, detectar_movimiento_por_ventana
+from app.services.yolo.detector import (
+    NARIZ,
+    OJO_DER,
+    OJO_IZQ,
+    DetectorYOLO,
+    LimitadorFPS,
+    detectar_movimiento_por_ventana,
+)
 
 logger = logging.getLogger(__name__)
 
 # Pool compartido para no crear un thread nuevo por cada frame/chunk.
 # max_workers moderado: la GPU es el cuello de botella real, no la CPU.
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="inferencia")
+
+
+def _guardar_captura_bgr(estacion_id: str, tipo: str, imagen_bgr: np.ndarray) -> str | None:
+    """Guarda en disco una foto (recorte de cara si se pudo ubicar, si no el cuadro completo)
+    en el momento exacto de una alerta, para que el supervisor pueda ver que la origino sin
+    tener que haber estado mirando la transmision en vivo justo en ese segundo.
+
+    Devuelve la ruta relativa a `RUTA_CAPTURAS` (se guarda asi en la BD), o None si algo falla
+    -una captura fallida nunca debe tumbar el pipeline de deteccion de alertas-.
+    """
+    try:
+        import cv2
+
+        ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", imagen_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if not ok_jpeg:
+            return None
+        return _guardar_captura_bytes(estacion_id, tipo, buffer_jpeg.tobytes())
+    except Exception:
+        logger.exception("No se pudo guardar captura de alerta para estacion %s", estacion_id)
+        return None
+
+
+def _guardar_captura_bytes(estacion_id: str, tipo: str, jpeg_bytes: bytes) -> str | None:
+    try:
+        carpeta = RUTA_CAPTURAS / estacion_id
+        carpeta.mkdir(parents=True, exist_ok=True)
+        marca = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        nombre = f"{tipo}_{marca}_{uuid.uuid4().hex[:6]}.jpg"
+        (carpeta / nombre).write_bytes(jpeg_bytes)
+        return f"{estacion_id}/{nombre}"
+    except Exception:
+        logger.exception("No se pudo escribir captura de alerta en disco para estacion %s", estacion_id)
+        return None
 
 
 async def consumir_video(track, estacion_id: str) -> None:
@@ -60,6 +102,17 @@ async def consumir_video(track, estacion_id: str) -> None:
         try:
             frame_bgr = frame.to_ndarray(format="bgr24")
 
+            # Snapshot JPEG liviano para que el panel de supervisor pueda mostrar una
+            # miniatura casi en vivo de cada estacion sin necesitar un segundo canal WebRTC.
+            try:
+                import cv2
+
+                ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                if ok_jpeg:
+                    gestor_estaciones.actualizar_snapshot(estacion_id, buffer_jpeg.tobytes())
+            except Exception:
+                logger.exception("No se pudo generar snapshot JPEG para estacion %s", estacion_id)
+
             # La inferencia YOLO es bloqueante (CPU/GPU-bound) -> se corre en thread aparte
             resultado = await loop.run_in_executor(_executor, detector.procesar_frame, frame_bgr)
 
@@ -78,12 +131,27 @@ async def consumir_video(track, estacion_id: str) -> None:
                 ultimo_ts_alerta = ahora
                 historial.clear()  # evita que la misma racha de movimiento dispare dos alertas seguidas
 
-                alerta_id = registrar_alerta(estacion_id, "Movimiento brusco detectado")
+                # Recorte de cara si se puede ubicar con confianza; si no, el cuadro completo
+                # (mejor una foto de cuerpo entero que ninguna foto).
+                recorte_postura = recortar_cara(
+                    frame_bgr, kpts_persona, conf_persona, settings.emocion_confianza_minima_keypoints
+                )
+                captura_path = await loop.run_in_executor(
+                    _executor, _guardar_captura_bgr, estacion_id, "postura",
+                    recorte_postura if recorte_postura is not None else frame_bgr,
+                )
+
+                alerta_id = registrar_alerta(estacion_id, "Movimiento brusco detectado", captura_path=captura_path)
                 await bus_alertas.emitir(
                     nuevo_evento(
                         estacion_id,
                         "alerta_postura",
-                        {"detalle": "Movimiento brusco detectado", "alerta_id": alerta_id, "veredicto": None},
+                        {
+                            "detalle": "Movimiento brusco detectado",
+                            "alerta_id": alerta_id,
+                            "veredicto": None,
+                            "captura_url": f"/api/alertas/{alerta_id}/captura.jpg" if captura_path else None,
+                        },
                     )
                 )
 
@@ -93,9 +161,28 @@ async def consumir_video(track, estacion_id: str) -> None:
                 )
                 if recorte_cara is None:
                     racha_emocion = 0
+                    # DEBUG temporal: si esto sale seguido, el problema es que no se puede
+                    # ubicar la cara con confianza (angulo de camara, iluminacion, keypoints
+                    # de ojos/nariz poco confiables) -> nunca llega a clasificar expresion.
+                    logger.info(
+                        "[debug-expresion] estacion %s: no se pudo ubicar la cara en este frame "
+                        "(confianza nariz=%.2f, ojo_izq=%.2f, ojo_der=%.2f, minima requerida=%.2f)",
+                        estacion_id, conf_persona[NARIZ] if len(conf_persona) > NARIZ else -1,
+                        conf_persona[OJO_IZQ] if len(conf_persona) > OJO_IZQ else -1,
+                        conf_persona[OJO_DER] if len(conf_persona) > OJO_DER else -1,
+                        settings.emocion_confianza_minima_keypoints,
+                    )
                 else:
                     etiqueta, probabilidad = await loop.run_in_executor(
                         _executor, detector_emocion.clasificar, recorte_cara
+                    )
+                    # DEBUG temporal: muestra la clasificacion aunque no cruce el umbral, para
+                    # ver si el modelo si esta corriendo y que tan cerca/lejos esta de alertar.
+                    logger.info(
+                        "[debug-expresion] estacion %s: cara detectada, etiqueta=%s prob=%.2f "
+                        "(umbral=%.2f, racha=%d/%d)",
+                        estacion_id, etiqueta, probabilidad, settings.emocion_umbral_probabilidad,
+                        racha_emocion, settings.emocion_frames_consecutivos,
                     )
                     if etiqueta in EMOCIONES_NEGATIVAS and probabilidad >= settings.emocion_umbral_probabilidad:
                         racha_emocion += 1
@@ -110,12 +197,22 @@ async def consumir_video(track, estacion_id: str) -> None:
                         racha_emocion = 0
 
                         detalle = f"Expresión facial: {etiqueta} ({probabilidad:.0%})"
-                        alerta_id = registrar_alerta(estacion_id, detalle, tipo="expresion")
+                        # `recorte_cara` es justo el que uso el clasificador para esta alerta:
+                        # es la foto mas relevante posible (la cara en el momento exacto del gesto).
+                        captura_path = await loop.run_in_executor(
+                            _executor, _guardar_captura_bgr, estacion_id, "expresion", recorte_cara
+                        )
+                        alerta_id = registrar_alerta(estacion_id, detalle, tipo="expresion", captura_path=captura_path)
                         await bus_alertas.emitir(
                             nuevo_evento(
                                 estacion_id,
                                 "alerta_expresion",
-                                {"detalle": detalle, "alerta_id": alerta_id, "veredicto": None},
+                                {
+                                    "detalle": detalle,
+                                    "alerta_id": alerta_id,
+                                    "veredicto": None,
+                                    "captura_url": f"/api/alertas/{alerta_id}/captura.jpg" if captura_path else None,
+                                },
                             )
                         )
         except Exception:
@@ -133,6 +230,7 @@ async def consumir_audio(track, estacion_id: str) -> None:
     prueba de text" + "o" en el siguiente chunk), lo cual ademas empeora la transcripcion
     porque Whisper pierde el contexto de la frase completa.
     """
+    logger.info("[debug-audio] estacion %s: consumir_audio() arranco, esperando frames...", estacion_id)
     transcriptor = Transcriptor()
     loop = asyncio.get_event_loop()
 
@@ -148,6 +246,7 @@ async def consumir_audio(track, estacion_id: str) -> None:
     buffer: list[np.ndarray] = []
     muestras_acumuladas = 0
     muestras_silencio_consecutivas = 0
+    contador_frames_crudos = 0
 
     while True:
         try:
@@ -155,6 +254,16 @@ async def consumir_audio(track, estacion_id: str) -> None:
         except Exception:
             logger.info("Track de audio finalizado para estacion %s", estacion_id)
             break
+
+        contador_frames_crudos += 1
+        if contador_frames_crudos <= 3 or contador_frames_crudos % 100 == 0:
+            # DEBUG temporal: si esto NUNCA sale, el track de audio no esta llegando (problema
+            # de negociacion WebRTC/mic, no de Whisper). Si sale, el audio si esta llegando y
+            # el problema esta mas adelante (energia/duracion/Whisper).
+            logger.info(
+                "[debug-audio] estacion %s: frame crudo #%d recibido (samples=%d, rate=%d)",
+                estacion_id, contador_frames_crudos, frame.samples, frame.sample_rate,
+            )
 
         try:
             frames_resampleados = resampler.resample(frame)
@@ -189,11 +298,23 @@ async def consumir_audio(track, estacion_id: str) -> None:
         muestras_acumuladas = 0
         muestras_silencio_consecutivas = 0
 
+        # DEBUG temporal: energia RMS del chunk completo. Si sale siempre muy por debajo de
+        # `audio_energia_minima` (0.01 por defecto), el microfono esta llegando casi en
+        # silencio (nivel de captura muy bajo, mic equivocado, o el track de audio no trae
+        # nada real) y por eso nunca se manda nada a Whisper.
+        energia_chunk = float(np.sqrt(np.mean(np.square(chunk))))
+        logger.info(
+            "[debug-audio] estacion %s: chunk de %.2fs, energia RMS=%.4f (minima para transcribir=%.4f)",
+            estacion_id, len(chunk) / sample_rate_objetivo, energia_chunk, settings.audio_energia_minima,
+        )
+
         try:
             texto = await loop.run_in_executor(_executor, transcriptor.transcribir_chunk, chunk)
         except Exception:
             logger.exception("Error al transcribir audio de estacion %s", estacion_id)
             continue
+
+        logger.info("[debug-audio] estacion %s: texto transcrito = %r", estacion_id, texto)
 
         if not texto:
             continue
@@ -201,12 +322,25 @@ async def consumir_audio(track, estacion_id: str) -> None:
         registrar_transcripcion(estacion_id, texto)
         await bus_alertas.emitir(nuevo_evento(estacion_id, "transcripcion", {"texto": texto}))
 
-        palabra_detectada = contiene_lenguaje_inapropiado(texto)
+        palabra_detectada = contiene_lenguaje_inapropiado(texto, nivel=config_tiempo_real.sensibilidad_lenguaje)
         if palabra_detectada:
             # El detalle guardado en BD conserva la transcripcion completa (auditoria); el
             # que se muestra en vivo va corto, para no llenar el panel con frases largas.
             fragmento = texto if len(texto) <= 60 else texto[:57] + "..."
-            alerta_id = registrar_alerta(estacion_id, f'Palabra "{palabra_detectada}" en: "{texto}"', tipo="lenguaje")
+
+            # Aqui no hay un frame de video a mano (este pipeline es solo audio): se reusa
+            # el ultimo snapshot JPEG que ya genera `consumir_video` en paralelo para la
+            # miniatura del panel -es de hace como maximo ~1/yolo_target_fps segundos-.
+            info_estacion = gestor_estaciones.obtener(estacion_id)
+            captura_path = None
+            if info_estacion is not None and info_estacion.ultimo_snapshot_jpeg is not None:
+                captura_path = await loop.run_in_executor(
+                    _executor, _guardar_captura_bytes, estacion_id, "lenguaje", info_estacion.ultimo_snapshot_jpeg
+                )
+
+            alerta_id = registrar_alerta(
+                estacion_id, f'Palabra "{palabra_detectada}" en: "{texto}"', tipo="lenguaje", captura_path=captura_path
+            )
             await bus_alertas.emitir(
                 nuevo_evento(
                     estacion_id,
@@ -215,6 +349,7 @@ async def consumir_audio(track, estacion_id: str) -> None:
                         "detalle": f'"{palabra_detectada}" — "{fragmento}"',
                         "alerta_id": alerta_id,
                         "veredicto": None,
+                        "captura_url": f"/api/alertas/{alerta_id}/captura.jpg" if captura_path else None,
                     },
                 )
             )

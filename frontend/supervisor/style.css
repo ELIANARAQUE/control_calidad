@@ -1,422 +1,251 @@
-/* Dashboard maestro-detalle: lista compacta de estaciones a la izquierda + feed de la
-   seleccionada a la derecha. Pensado para escalar a 12-15 estaciones conectadas a la vez
-   sin volverse un muro de tarjetas — una lista angosta escala, una grilla de tarjetas no. */
-
-:root {
-  --fondo: #f3f2ee;
-  --superficie: #ffffff;
-  --superficie-hover: #faf9f6;
-  --borde: #e6e3dc;
-  --texto: #16150f;
-  --texto-tenue: #706c62;
-  --acento: #1f5f4f;
-  --acento-suave: #e7f1ed;
-  --rojo: #c2410c;
-  --rojo-suave: #fdece3;
-  --naranja: #b45309;
-  --naranja-suave: #fdf1de;
-  --morado: #6d28d9;
-  --morado-suave: #f0eafc;
-  --azul: #1d4ed8;
-  --azul-suave: #e8eefd;
-  --sombra: 0 1px 2px rgba(22, 21, 15, 0.04), 0 8px 24px -12px rgba(22, 21, 15, 0.12);
-  --radio: 14px;
-  --radio-chico: 9px;
-}
-
-* {
-  box-sizing: border-box;
-}
+/* Complementa Tailwind (cargado por CDN en index.html) con lo que las utilidades no cubren:
+   fuentes de marca, estados activos de navegación/filtros, y las tarjetas generadas por JS
+   para cada estación/evento (más simple mantenerlas en CSS con nombres claros en español
+   que repetir docenas de clases utilitarias en cada plantilla de client.js). */
 
 body {
-  margin: 0;
-  min-height: 100vh;
-  background: var(--fondo);
-  color: var(--texto);
-  font-family: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  font-family: "Manrope", -apple-system, "Segoe UI", system-ui, sans-serif;
 }
 
-.app {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  min-height: 100vh;
+.font-headline-xl, .font-headline-lg, .font-headline-md, .font-headline-sm {
+  font-family: "Space Grotesk", "Manrope", sans-serif;
 }
 
-/* --- Barra lateral --- */
+.font-label-sm, .font-label-md, .font-label-lg {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
 
-.barra-lateral {
-  background: var(--superficie);
-  border-right: 1px solid var(--borde);
-  padding: 1.25rem 1rem;
+.oculto { display: none !important; }
+
+/* --- Estado de conexión (punto en la marca) --- */
+.punto.conectado {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+}
+
+/* --- Navegación lateral --- */
+.nav-link.activa {
+  background: #10b981;
+  color: #00220f;
+  font-weight: 700;
+}
+
+/* --- Filtros de vista (Todas / Con alertas / Conectadas) --- */
+.filtro-vista {
+  color: #586174;
+}
+.filtro-vista.activo {
+  background: #ffffff;
+  color: #0f1c30;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(15, 28, 48, 0.08);
+}
+
+.filtro-timeline.activo {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.btn-sensibilidad.activo,
+.btn-sensibilidad-panel.activo {
+  background: #10b981;
+  color: #00220f;
+}
+
+/* --- Tarjeta de estación (grid "Terminales en Transmisión") --- */
+.tarjeta-estacion {
+  background: #fff;
+  border-radius: 0.9rem;
+  box-shadow: 0 1px 2px rgba(15, 28, 48, 0.06), 0 8px 24px -12px rgba(15, 28, 48, 0.15);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
-  position: sticky;
-  top: 0;
-  height: 100vh;
 }
 
-.marca {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
+.tarjeta-estacion.con-alerta {
+  border-top: 4px solid #dc2626;
 }
 
-.logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--acento);
+.tarjeta-estacion .cabecera {
+  padding: 0.8rem 1rem;
+  background: #0f1d38;
   color: #fff;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 0.75rem;
-  letter-spacing: 0.02em;
-  flex-shrink: 0;
+  justify-content: space-between;
+  gap: 0.6rem;
 }
 
-.marca-titulo {
-  font-weight: 700;
-  font-size: 0.92rem;
-  letter-spacing: -0.01em;
+.tarjeta-estacion.con-alerta .cabecera {
+  background: #dc2626;
 }
 
-.marca-estado {
+.tarjeta-estacion .avatar-estacion {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.72rem;
-  color: var(--texto-tenue);
-}
-
-.punto {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--texto-tenue);
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #fff;
   flex-shrink: 0;
 }
 
-.punto.conectado {
-  background: var(--acento);
-  box-shadow: 0 0 0 3px var(--acento-suave);
+.tarjeta-estacion .video-wrap {
+  position: relative;
+  height: 220px;
+  background: #0b1c30;
+  overflow: hidden;
 }
 
-.resumen-mini {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.tarjeta-estacion .video-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tarjeta-estacion .sin-senal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: #7885a6;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tarjeta-estacion .cuerpo {
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
-.chip-stat {
-  background: var(--fondo);
-  border-radius: var(--radio-chico);
-  padding: 0.55rem 0.65rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.chip-stat.urgente {
-  background: var(--rojo-suave);
-}
-
-.chip-stat-valor {
-  font-weight: 800;
-  font-size: 1.15rem;
-  letter-spacing: -0.02em;
-}
-
-.chip-stat.urgente .chip-stat-valor {
-  color: var(--rojo);
-}
-
-.chip-stat-etiqueta {
-  font-size: 0.66rem;
-  color: var(--texto-tenue);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.buscador input {
-  width: 100%;
-  border: 1px solid var(--borde);
-  background: var(--fondo);
+.badge-pendientes-mini {
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
   border-radius: 999px;
-  padding: 0.5rem 0.9rem;
-  font-size: 0.8rem;
-  font-family: inherit;
-  color: var(--texto);
-  outline: none;
-}
-
-.buscador input:focus {
-  border-color: var(--acento);
-}
-
-.lista-estaciones {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin: 0 -0.4rem;
-  padding: 0 0.4rem;
-}
-
-.fila-estacion {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem 0.55rem;
-  border-radius: var(--radio-chico);
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.12s ease;
-}
-
-.fila-estacion:hover {
-  background: var(--superficie-hover);
-}
-
-.fila-estacion.activa {
-  background: var(--acento-suave);
-  border-color: var(--acento);
-}
-
-.fila-estacion.todas {
-  font-weight: 600;
-  border-bottom: 1px solid var(--borde);
-  border-radius: 0;
-  padding-bottom: 0.75rem;
-  margin-bottom: 0.3rem;
-}
-
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #fff;
-  flex-shrink: 0;
+  padding: 0 0.3rem;
 }
 
-.info-fila {
-  flex: 1;
-  min-width: 0;
-}
-
-.nombre-fila {
-  font-size: 0.82rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.detalle-fila {
-  font-size: 0.68rem;
-  color: var(--texto-tenue);
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.punto-mini {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #c9c5ba;
-}
-
-.punto-mini.en-vivo {
-  background: var(--acento);
-}
-
-.badge-pendientes {
-  background: var(--rojo);
-  color: #fff;
-  font-size: 0.66rem;
-  font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.35rem;
-  flex-shrink: 0;
-}
-
-/* --- Panel de detalle --- */
-
-.panel-detalle {
-  padding: 1.5rem 2rem 3rem;
-  max-width: 900px;
-}
-
-.cabecera-detalle {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.cabecera-detalle h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-
-.subtitulo-detalle {
-  font-size: 0.82rem;
-  color: var(--texto-tenue);
-}
-
-.stats-detalle {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.stat-detalle {
-  background: var(--superficie);
-  border: 1px solid var(--borde);
-  border-radius: var(--radio-chico);
-  padding: 0.55rem 0.9rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.05rem;
-  min-width: 90px;
-}
-
-.stat-detalle .valor {
-  font-weight: 800;
-  font-size: 1.15rem;
-  letter-spacing: -0.02em;
-}
-
-.stat-detalle .etiqueta {
-  font-size: 0.66rem;
-  color: var(--texto-tenue);
-}
-
-/* --- Feed de eventos --- */
-
-.feed {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
+/* --- Items del feed / timeline --- */
 .item-evento {
-  background: var(--superficie);
-  border: 1px solid var(--borde);
-  border-radius: var(--radio);
-  padding: 0.85rem 1rem;
-  box-shadow: var(--sombra);
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.625rem;
+  background: #eef1f8;
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  transition: background 0.15s ease;
 }
 
-.icono-evento {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+.item-evento.critico {
+  background: #fee2e2;
+}
+
+.item-evento:hover {
+  background: #e4e9f4;
+}
+
+.item-evento .fila-superior {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  flex-shrink: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.item-evento.alerta_postura .icono-evento { background: var(--rojo-suave); }
-.item-evento.alerta_lenguaje .icono-evento { background: var(--naranja-suave); }
-.item-evento.alerta_expresion .icono-evento { background: var(--morado-suave); }
-.item-evento.transcripcion .icono-evento { background: var(--azul-suave); }
-.item-evento.conexion .icono-evento,
-.item-evento.desconexion .icono-evento { background: var(--fondo); }
-
-.cuerpo-evento {
-  flex: 1;
-  min-width: 0;
-}
-
-.texto-evento {
-  font-size: 0.87rem;
-  line-height: 1.45;
-  word-break: break-word;
-}
-
-.meta-evento {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+.item-evento .hora {
+  font-family: "JetBrains Mono", monospace;
   font-size: 0.7rem;
-  color: var(--texto-tenue);
-  margin-top: 0.3rem;
-}
-
-.meta-evento .tag-estacion {
-  background: var(--fondo);
-  border-radius: 999px;
-  padding: 0.05rem 0.5rem;
+  color: #586174;
   font-weight: 600;
 }
 
-.acciones {
-  margin-top: 0.6rem;
+.item-evento.critico .hora { color: #dc2626; }
+
+.item-evento .nombre {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #0f1c30;
+}
+
+.item-evento .etiqueta {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.3rem;
+  background: #e4e9f4;
+  color: #586174;
+}
+
+.item-evento.critico .etiqueta {
+  background: #dc2626;
+  color: #fff;
+}
+
+.captura-mini {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 0.4rem;
+  border: 1px solid #c7cedd;
+  flex-shrink: 0;
+}
+
+.item-evento .texto {
+  font-size: 0.85rem;
+  color: #24304a;
+  line-height: 1.45;
+}
+
+.item-evento mark {
+  background: #dc2626;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+}
+
+.item-evento .acciones {
   display: flex;
   gap: 0.4rem;
+  margin-top: 0.15rem;
 }
 
 .btn-veredicto {
-  font-size: 0.74rem;
-  font-weight: 600;
-  padding: 0.32rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.28rem 0.6rem;
   border-radius: 999px;
-  border: 1px solid var(--borde);
-  background: var(--superficie);
-  color: var(--texto);
+  border: 1px solid #c7cedd;
+  background: #fff;
+  color: #0f1c30;
   cursor: pointer;
-  font-family: inherit;
   transition: border-color 0.12s ease, color 0.12s ease;
 }
 
-.btn-confirmar:hover { border-color: var(--rojo); color: var(--rojo); }
-.btn-descartar:hover { border-color: var(--acento); color: var(--acento); }
+.btn-confirmar:hover { border-color: #dc2626; color: #dc2626; }
+.btn-descartar:hover { border-color: #10b981; color: #0f9d68; }
 
-.vacio {
+.vacio-feed {
   text-align: center;
-  color: var(--texto-tenue);
-  font-size: 0.9rem;
-  margin-top: 3rem;
-}
-
-.oculto {
-  display: none;
-}
-
-@media (max-width: 820px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-  .barra-lateral {
-    position: relative;
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--borde);
-  }
-  .lista-estaciones {
-    max-height: 240px;
-  }
+  color: #8890a0;
+  font-size: 0.85rem;
+  padding: 1.5rem 0;
 }
