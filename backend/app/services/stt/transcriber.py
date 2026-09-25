@@ -5,13 +5,54 @@ faster-whisper (CTranslate2) es preferible a whisper "vanilla" aqui porque:
   - Es mas rapido en CPU tambien, por si el servidor se queda sin GPU libre.
 """
 import logging
+import os
+import sys
 
 import numpy as np
-from faster_whisper import WhisperModel
-
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _registrar_dlls_cuda_de_pip() -> None:
+    """En Windows, CTranslate2 (el motor de faster-whisper) busca cuBLAS/cuDNN como DLLs del
+    sistema: si la maquina no tiene el CUDA Toolkit completo instalado, no las encuentra aunque
+    haya GPU (el error tipico es "cublas64_12.dll is not found or cannot be loaded"). Los
+    paquetes pip `nvidia-cublas-cu12`/`nvidia-cudnn-cu12` traen esas DLLs pero las dejan dentro
+    de site-packages, donde Windows no las busca por defecto: hay que agregar esas carpetas
+    explicitamente con `os.add_dll_directory` ANTES de importar `faster_whisper`/`ctranslate2`.
+    """
+    if sys.platform != "win32":
+        return
+    paquetes = []
+    for nombre_modulo in ("nvidia.cublas", "nvidia.cudnn", "nvidia.cuda_runtime"):
+        try:
+            paquetes.append(__import__(nombre_modulo, fromlist=["_"]))
+        except ImportError:
+            pass  # ese paquete no esta instalado; se sigue con los demas
+
+    # Son namespace packages (PEP 420, sin __init__.py): no tienen __file__, hay que usar
+    # __path__ para ubicar donde pip los instalo.
+    carpetas_bin = []
+    for paquete in paquetes:
+        for ruta_base in paquete.__path__:
+            carpeta_bin = os.path.join(ruta_base, "bin")
+            if os.path.isdir(carpeta_bin):
+                carpetas_bin.append(carpeta_bin)
+                os.add_dll_directory(carpeta_bin)
+
+    # `os.add_dll_directory` solo lo respetan las llamadas a LoadLibraryEx con la bandera de
+    # busqueda "segura" -algunas librerias C++ (como el motor nativo de CTranslate2) hacen un
+    # LoadLibrary clasico, que ignora esa lista pero SI respeta el PATH del proceso-, asi que
+    # se agregan tambien ahi para cubrir ambos mecanismos.
+    if carpetas_bin:
+        os.environ["PATH"] = os.pathsep.join(carpetas_bin) + os.pathsep + os.environ.get("PATH", "")
+
+
+_registrar_dlls_cuda_de_pip()
+
+from faster_whisper import WhisperModel  # noqa: E402 (debe ir despues de registrar las DLLs)
+
+from app.core.config import settings  # noqa: E402
 
 # Frases que Whisper "alucina" tipicamente cuando el audio esta en silencio o casi silencio
 # (viene de haber sido entrenado con muchisimo video de YouTube). No son transcripciones

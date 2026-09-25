@@ -8,8 +8,14 @@ av==12.3.0
 # Vision por computador
 ultralytics==8.3.0
 opencv-python-headless==4.10.0.84
-torch==2.4.1
-torchvision==0.19.1
+# torch/torchvision: el pip install normal (`pip install -r requirements.txt`) instala el
+# build CPU-only, que hace que YOLO/HSEmotion caigan a CPU en silencio y que faster-whisper
+# truene con "cublas64_12.dll is not found". Para GPU real en Windows hay que instalarlos
+# APARTE, ANTES de este archivo, indicando el indice de PyTorch con CUDA (ajustar cu128 segun
+# el driver/GPU: cu121 no soporta GPUs Blackwell como la RTX 50xx):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0
+torchvision==0.26.0
 
 # Expresion facial (HSEmotion, entrenado sobre AffectNet)
 onnxruntime==1.30.0
@@ -17,6 +23,10 @@ hsemotion-onnx==0.3.1
 
 # Audio / STT
 faster-whisper==1.0.3
+# cuBLAS/cuDNN para que faster-whisper (CTranslate2) pueda usar GPU en Windows sin necesitar
+# el CUDA Toolkit completo instalado en el sistema (ver transcriber.py _registrar_dlls_cuda_de_pip)
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
 
 # hsemotion-onnx arrastra una version de numpy 2.x que rompe a ultralytics
 # (requiere <2.0.0): se fija despues, en la ultima linea, para que gane esta.
