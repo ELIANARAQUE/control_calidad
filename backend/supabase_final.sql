@@ -42,8 +42,8 @@ restart identity cascade;
 -- tipos_documento es referenciada por usuarios: se vacia despues (usuarios ya esta vacia).
 truncate table tipos_documento restart identity cascade;
 
--- Fotos de registro guardadas en Storage de cuentas que ya no existen.
-delete from storage.objects where bucket_id = 'fotos-empleados';
+-- Las fotos de registro viejas (Storage) no se pueden borrar por SQL -Supabase lo bloquea-:
+-- vaciarlas desde el dashboard: Storage -> fotos-empleados -> seleccionar todo -> Delete.
 
 -- ---------- 3) Catalogos (desde aqui los administra el panel, no el codigo) ----------
 
