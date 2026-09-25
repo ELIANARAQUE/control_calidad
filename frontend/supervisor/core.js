@@ -458,6 +458,8 @@ const Core = (() => {
 
   // --- Sesión: login / logout (presente en todas las paginas) ---
   function cerrarSesionLocal() {
+    // Borra tambien la cookie de sesion del servidor (si no, /supervisor/ seguiria abriendo).
+    fetch("/api/auth/logout", { method: "POST", keepalive: true }).catch(() => {});
     sessionStorage.removeItem(CLAVE_TOKEN);
     sessionStorage.removeItem(CLAVE_ROL);
     tokenSesion = null;

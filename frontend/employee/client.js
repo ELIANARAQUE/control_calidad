@@ -323,16 +323,26 @@ function conectarNotificaciones() {
   };
 }
 
-function cerrarSesionEmpleado() {
+async function cerrarSesionEmpleado() {
+  if (pc) detenerMonitoreo();
+  try {
+    // Invalida el token en el servidor y borra la cookie de sesion: sin esto, /empleado/
+    // seguiria abriendo aunque aqui se borre lo guardado en el navegador.
+    await fetch("/api/auth/logout", { method: "POST", headers: { "X-Auth-Token": sessionStorage.getItem(CLAVE_TOKEN) || "" } });
+  } catch (err) {
+    // sin conexion: igual se limpia lo local y se manda al login
+  }
   sessionStorage.removeItem(CLAVE_TOKEN);
   sessionStorage.removeItem(CLAVE_SESION_NOMBRE);
   sessionStorage.removeItem(CLAVE_SESION_ROL);
   window.location.href = "/login/";
 }
-btnCerrarSesionEmpleado.addEventListener("click", (ev) => {
-  ev.preventDefault();
-  cerrarSesionEmpleado();
-});
+for (const boton of [btnCerrarSesionEmpleado, document.getElementById("btnCerrarSesionHeader")]) {
+  boton.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    cerrarSesionEmpleado();
+  });
+}
 
 btnIniciar.addEventListener("click", () => {
   if (!checkHabeasData.checked) return;

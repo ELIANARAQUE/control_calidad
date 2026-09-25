@@ -5,10 +5,10 @@ import logging
 import uuid
 
 from aiortc import RTCConfiguration, RTCIceServer, RTCPeerConnection, RTCSessionDescription
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.core.auth import info_de_token
+from app.core.auth import COOKIE_SESION, info_de_token
 from app.core.db import registrar_evento_conexion
 from app.core.state import EstacionInfo, bus_alertas, gestor_estaciones, nuevo_evento
 from app.services.webrtc.tracks import consumir_audio, consumir_video
@@ -46,7 +46,9 @@ def _log_seccion_sdp(estacion_id: str, etiqueta: str, sdp: str, kind: str) -> No
 class OfertaWebRTC(BaseModel):
     sdp: str
     type: str
-    token: str  # sesion de la cuenta autenticada (ver /auth/verificar-rostro): de ahi sale el nombre real
+    # Sesion de la cuenta autenticada (ver /auth/verificar-rostro): de ahi sale el nombre real.
+    # Opcional en el cuerpo porque tambien se acepta la cookie de sesion.
+    token: str | None = None
     estacion_id: str | None = None
     sede: str | None = None
     modulo: str | None = None
@@ -60,9 +62,9 @@ class RespuestaWebRTC(BaseModel):
 
 
 @router.post("/offer", response_model=RespuestaWebRTC)
-async def recibir_oferta(oferta: OfertaWebRTC) -> RespuestaWebRTC:
+async def recibir_oferta(oferta: OfertaWebRTC, request: Request) -> RespuestaWebRTC:
     """Cada estacion de empleado llama a este endpoint una vez al iniciar su sesion."""
-    sesion = info_de_token(oferta.token)
+    sesion = info_de_token(oferta.token) or info_de_token(request.cookies.get(COOKIE_SESION))
     if sesion is None:
         raise HTTPException(status_code=401, detail="Sesión inválida o expirada, vuelve a iniciar sesión")
 

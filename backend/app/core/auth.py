@@ -13,6 +13,11 @@ from fastapi import Header, HTTPException, Query
 # token -> {"usuario_id": str, "nombre": str, "rol": "admin" | "empleado"}
 _tokens_validos: dict[str, dict] = {}
 
+# Cookie de sesion (HttpOnly: el JavaScript de la pagina no puede leerla ni robarla). Es lo que
+# el servidor revisa para dejar entrar -o no- a /empleado/ y /supervisor/: sin ella, se
+# redirige a /login/ antes de servir la pagina, sin depender de ningun chequeo del navegador.
+COOKIE_SESION = "qamonitor_sesion"
+
 
 def crear_token(usuario_id: str, nombre: str, rol: str) -> str:
     token = secrets.token_urlsafe(32)

@@ -4,10 +4,11 @@ login en dos pasos -credenciales primero, verificacion facial despues- contra la
 """
 import re
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app.core.auth import crear_token, requerir_sesion
+from app.core.auth import COOKIE_SESION, cerrar_sesion, crear_token
 from app.core.cuentas import (
     ErrorRegistro,
     crear_usuario,
@@ -124,16 +125,20 @@ async def verificar_rostro(usuario_id: str = Form(...), nombre: str = Form(...),
 
     token = crear_token(usuario_id, nombre, rol)
     destino = "/empleado/" if rol == "empleado" else "/supervisor/"
-    return {"token": token, "rol": rol, "nombre": nombre, "destino": destino}
+    respuesta = JSONResponse({"token": token, "rol": rol, "nombre": nombre, "destino": destino})
+    respuesta.set_cookie(COOKIE_SESION, token, httponly=True, samesite="lax", path="/")
+    return respuesta
 
 
 @router.post("/auth/logout")
 async def logout(
+    request: Request,
     x_auth_token: str | None = Header(default=None),
     token: str | None = Query(default=None),
-    _sesion: dict = Depends(requerir_sesion),
-) -> dict:
-    from app.core.auth import cerrar_sesion
-
-    cerrar_sesion(x_auth_token or token or "")
-    return {"ok": True}
+) -> JSONResponse:
+    """Cierra la sesion (invalida el token en el servidor y borra la cookie). No exige una
+    sesion valida: si ya expiro, igual se limpia la cookie sin dar error."""
+    cerrar_sesion(x_auth_token or token or request.cookies.get(COOKIE_SESION) or "")
+    respuesta = JSONResponse({"ok": True})
+    respuesta.delete_cookie(COOKIE_SESION, path="/")
+    return respuesta

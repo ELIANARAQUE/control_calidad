@@ -159,6 +159,15 @@
   </div>
 </div>
 
+<!-- Modal: procesando (el analisis de las 3 fotos tarda varios segundos) -->
+<div class="oculto fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" id="modalCargando">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 items-center text-center">
+    <div class="w-12 h-12 rounded-full border-4 border-[#e4e9f4] border-t-[#10b981] animate-spin"></div>
+    <h2 class="titulo font-bold text-lg text-[#0f1c30]">Cargando y analizando imágenes…</h2>
+    <p class="text-sm text-[#586174]">Estamos verificando tu rostro en las tres fotos. Esto puede tardar unos segundos, no cierres esta página.</p>
+  </div>
+</div>
+
 <!-- Modal: confirmacion final -->
 <div class="oculto fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" id="modalExito">
   <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 items-center text-center">
@@ -169,6 +178,6 @@
   </div>
 </div>
 
-<script src="client.js?v=2"></script>
+<script src="client.js?v=3"></script>
 </body>
 </html>

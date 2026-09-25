@@ -167,6 +167,10 @@ document.getElementById("btnCapturarRostro").addEventListener("click", async () 
     form.append("rol", datosSesionPendiente.rol);
     form.append("foto", blob, "rostro.jpg");
 
+    const botonVerificar = document.getElementById("btnCapturarRostro");
+    botonVerificar.disabled = true;
+    okRostro.textContent = "Analizando rostro, un momento…";
+    okRostro.classList.remove("oculto");
     try {
       const resp = await fetch("/api/auth/verificar-rostro", { method: "POST", body: form });
       const datos = await resp.json();
@@ -180,8 +184,11 @@ document.getElementById("btnCapturarRostro").addEventListener("click", async () 
       cerrarCamara();
       setTimeout(() => (window.location.href = datos.destino), 700);
     } catch (err) {
+      okRostro.classList.add("oculto");
       errorRostro.textContent = err.message;
       errorRostro.classList.remove("oculto");
+    } finally {
+      botonVerificar.disabled = false;
     }
   }, "image/jpeg", 0.92);
 });

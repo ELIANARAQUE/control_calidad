@@ -201,10 +201,18 @@ form.addEventListener("submit", async (ev) => {
   datosForm.append("foto_izquierda", fotos.izquierda, "izquierda.jpg");
   datosForm.append("foto_derecha", fotos.derecha, "derecha.jpg");
 
+  const modalCargando = document.getElementById("modalCargando");
+  const botonEnviar = form.querySelector('button[type="submit"]');
+  modalCargando.classList.remove("oculto");
+  botonEnviar.disabled = true;
   try {
     const resp = await fetch("/api/auth/registro", { method: "POST", body: datosForm });
     const datos = await resp.json();
-    if (!resp.ok) throw new Error(datos.detail || "No se pudo crear la cuenta");
+    if (!resp.ok) {
+      throw new Error(
+        Array.isArray(datos.detail) ? datos.detail.map((d) => d.msg).join("; ") : datos.detail || "No se pudo crear la cuenta"
+      );
+    }
 
     document.getElementById("textoExito").textContent =
       rol === "admin"
@@ -214,6 +222,9 @@ form.addEventListener("submit", async (ev) => {
     document.getElementById("btnIrLogin").onclick = () => (window.location.href = "/login/");
   } catch (err) {
     mostrarError(err.message);
+  } finally {
+    modalCargando.classList.add("oculto");
+    botonEnviar.disabled = false;
   }
 });
 

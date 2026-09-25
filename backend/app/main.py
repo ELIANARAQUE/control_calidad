@@ -18,9 +18,11 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import alertas, auth, estaciones, signaling, supervisor
+from app.core.auth import COOKIE_SESION, info_de_token
 from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -35,14 +37,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_ROL_POR_HOME = {"/empleado": "empleado", "/supervisor": "admin"}
+_HOME_POR_ROL = {"empleado": "/empleado/", "admin": "/supervisor/"}
+
+
 @app.middleware("http")
-async def sin_cache_para_frontend(request, call_next):
-    """Obliga al navegador a revalidar el HTML/JS del frontend en cada carga: sin esto, tras
-    actualizar el sistema seguia sirviendose de cache la version vieja de la pagina (ej. la
-    estacion de empleado con el campo "Nombre completo" y el /api/offer sin token -> 422)."""
+async def sesion_y_sin_cache(request, call_next):
+    """1) Nadie entra a /empleado/ ni a /supervisor/ sin haber iniciado sesion (cookie de
+    sesion valida), y cada rol solo entra a su propio home -se valida en el SERVIDOR, antes de
+    servir la pagina; el JavaScript no puede saltarse esto-.
+    2) Obliga al navegador a revalidar el HTML/JS del frontend en cada carga, para que tras una
+    actualizacion no siga mostrando una version vieja guardada en cache."""
+    ruta = request.url.path
+    home = next((h for h in _ROL_POR_HOME if ruta == h or ruta.startswith(h + "/")), None)
+    if home is not None:
+        sesion = info_de_token(request.cookies.get(COOKIE_SESION))
+        if sesion is None:
+            return RedirectResponse("/login/", status_code=303)
+        if sesion["rol"] != _ROL_POR_HOME[home]:
+            return RedirectResponse(_HOME_POR_ROL[sesion["rol"]], status_code=303)
+
     respuesta = await call_next(request)
-    if not request.url.path.startswith("/api"):
-        respuesta.headers["Cache-Control"] = "no-cache"
+    if not ruta.startswith("/api"):
+        respuesta.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return respuesta
 
 
@@ -58,6 +75,11 @@ app.mount("/empleado", StaticFiles(directory="../frontend/employee", html=True),
 app.mount("/supervisor", StaticFiles(directory="../frontend/supervisor", html=True), name="supervisor-ui")
 app.mount("/registro", StaticFiles(directory="../frontend/registro", html=True), name="registro")
 app.mount("/login", StaticFiles(directory="../frontend/login", html=True), name="login")
+
+
+@app.get("/")
+async def raiz() -> RedirectResponse:
+    return RedirectResponse("/login/", status_code=303)
 
 
 @app.get("/api/salud")
