@@ -125,8 +125,9 @@ function renderizarGrid() {
   }
 }
 
-// Refresca las miniaturas de video cada 2s (la conexion WebRTC ya entrega frames a ~3fps
-// al backend; refrescar el <img> mas rapido que eso no aportaria nada).
+// Refresca las miniaturas de video cada 400ms (~2.5fps visibles): el backend ahora genera el
+// snapshot con cada frame que llega de la camara, no solo a los ~3fps de YOLO, asi que vale
+// la pena pedirlo mas seguido para que el panel se vea fluido y no "congelado".
 setInterval(() => {
   document.querySelectorAll(".video-wrap img[data-estacion]").forEach((img) => {
     const id = img.dataset.estacion;
@@ -134,7 +135,7 @@ setInterval(() => {
     img.style.display = "";
     if (img.nextElementSibling) img.nextElementSibling.style.display = "none";
   });
-}, 2000);
+}, 400);
 
 function renderizarFeed() {
   feedEl.innerHTML = "";

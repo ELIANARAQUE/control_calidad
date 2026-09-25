@@ -321,7 +321,7 @@ def obtener_datos_reporte_trabajador(nombre: str) -> dict:
         if estaciones_del_trabajador:
             marcadores = ",".join("?" * len(estaciones_del_trabajador))
             filas_alertas = conn.execute(
-                f"SELECT estacion_id, tipo, detalle, timestamp, veredicto FROM alertas "
+                f"SELECT estacion_id, tipo, detalle, timestamp, veredicto, captura_path FROM alertas "
                 f"WHERE estacion_id IN ({marcadores}) ORDER BY timestamp",
                 tuple(estaciones_del_trabajador),
             ).fetchall()
@@ -332,6 +332,7 @@ def obtener_datos_reporte_trabajador(nombre: str) -> dict:
                         "categoria": f"Alerta de {fila['tipo']}",
                         "detalle": fila["detalle"],
                         "veredicto": fila["veredicto"] or "Sin revisar",
+                        "captura_path": fila["captura_path"],
                     }
                 )
 
@@ -342,7 +343,13 @@ def obtener_datos_reporte_trabajador(nombre: str) -> dict:
             ).fetchall()
             for fila in filas_transcripciones:
                 eventos.append(
-                    {"timestamp": fila["timestamp"], "categoria": "Transcripción", "detalle": fila["texto"], "veredicto": ""}
+                    {
+                        "timestamp": fila["timestamp"],
+                        "categoria": "Transcripción",
+                        "detalle": fila["texto"],
+                        "veredicto": "",
+                        "captura_path": None,
+                    }
                 )
 
         eventos.sort(key=lambda e: e["timestamp"])

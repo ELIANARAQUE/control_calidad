@@ -42,13 +42,15 @@ class Settings(BaseSettings):
     whisper_model_size: str = "small"
     whisper_device: str = "cuda"
     whisper_compute_type: str = "int8_float16"  # cuantizacion para ahorrar VRAM
-    # Antes eran 14s/900ms: con audio continuo (sin pausas claras) el empleado y el supervisor
-    # esperaban hasta 14 segundos a ver el texto. Bajar el tope duro y el silencio de corte
-    # hace que la transcripcion "salga" con mucha mas frecuencia, al costo de partir frases
-    # largas en 2 chunks mas seguido (Whisper igual las transcribe bien por separado).
-    audio_chunk_maximo_segundos: float = 7.0  # tope duro: si la persona no para de hablar, igual se corta aqui
+    # Originalmente 14s/900ms, se bajo a 7s/500ms para reducir latencia, pero 500ms resulto
+    # demasiado agresivo: una pausa normal al hablar en espaniol (respirar, dudar) ya dura eso,
+    # asi que se cortaba la frase a la mitad y el chunk resultante quedaba sin contexto
+    # suficiente para que Whisper lo transcribiera bien (a veces ni pasaba el VAD interno).
+    # 800ms/10s es un punto medio: sigue siendo mas rapido que el original, pero no corta
+    # frases a mitad de una pausa para respirar.
+    audio_chunk_maximo_segundos: float = 10.0  # tope duro: si la persona no para de hablar, igual se corta aqui
     audio_chunk_minimo_segundos: float = 0.5  # no vale la pena transcribir chunks mas cortos que esto
-    audio_silencio_para_cortar_ms: float = 500.0  # pausa de habla que se interpreta como fin de frase (no una coma)
+    audio_silencio_para_cortar_ms: float = 800.0  # pausa de habla que se interpreta como fin de frase (no una coma)
     audio_energia_minima: float = 0.01  # RMS minimo para mandar el chunk a Whisper (evita alucinar en silencio)
     audio_silencio_rms: float = 0.006  # RMS por debajo del cual un frame cuenta como "silencio" para cortar
     whisper_no_speech_prob_maximo: float = 0.45  # descarta segmentos que el propio modelo considera poco fiables

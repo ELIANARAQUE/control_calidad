@@ -59,21 +59,65 @@ PALABRAS_ESTRICTO = PALABRAS_MODERADO | {
 
 NIVELES_SENSIBILIDAD = {"estricto": PALABRAS_ESTRICTO, "moderado": PALABRAS_MODERADO}
 
+# Frases (no palabras sueltas) que indican mal trato o negacion de ayuda al usuario: el
+# empleado no dijo ninguna grosería, pero igual dejo a la persona sin la atencion que vino a
+# buscar, o la trato de forma cortante/despectiva. Se detectan por coincidencia de subcadena
+# sobre el texto normalizado (sin tildes/minusculas), no por palabra completa, porque son
+# expresiones de varias palabras. Se activan siempre (no dependen de la sensibilidad de
+# lenguaje moderado/estricto, que es solo para groserias).
+FRASES_MALTRATO = {
+    "no lo puedo ayudar con eso",
+    "no lo puedo ayudar con su solicitud",
+    "no la puedo ayudar con eso",
+    "no la puedo ayudar con su solicitud",
+    "no puedo ayudarlo",
+    "no puedo ayudarla",
+    "no puedo hacer nada por usted",
+    "no puedo hacer nada por ti",
+    "averigue en otro lado",
+    "averigue en otra parte",
+    "vaya a averiguar en otro lado",
+    "eso no es mi problema",
+    "no es mi problema",
+    "no es mi trabajo",
+    "eso no me compete",
+    "eso no me corresponde",
+    "yo no tengo la culpa",
+    "arreglese como pueda",
+    "arreglatelas como puedas",
+    "no me importa lo que le pase",
+    "no me interesa su problema",
+    "resuelva usted mismo",
+    "resuelvalo usted",
+    "no tengo tiempo para esto",
+    "ese no es mi problema",
+    "no vuelva a molestarme",
+    "no le puedo dar esa informacion asi de facil",
+}
+
 
 def _normalizar(texto: str) -> str:
     sin_tildes = "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn")
     return sin_tildes.lower()
 
 
-def contiene_lenguaje_inapropiado(texto: str, nivel: str = "estricto") -> str | None:
-    """Devuelve la primera palabra inapropiada encontrada, o None si el texto esta limpio.
+def contiene_lenguaje_inapropiado(texto: str, nivel: str = "estricto") -> tuple[str, str] | None:
+    """Devuelve `(categoria, texto_detectado)` si el texto contiene una grosería o una frase
+    de mal trato/negacion de ayuda, o `None` si esta limpio.
 
-    `nivel`: "estricto" (lista completa) o "moderado" (solo groserias fuertes e inequivocas),
-    ajustable en caliente por el supervisor desde el panel de control.
+    `categoria` es `"grosería"` o `"mal trato"`. `nivel` ("estricto"/"moderado") solo afecta
+    la lista de groserias, ajustable en caliente por el supervisor; las frases de mal trato
+    se revisan siempre, sin importar la sensibilidad configurada.
     """
+    texto_normalizado = _normalizar(texto)
+
+    for frase in FRASES_MALTRATO:
+        if frase in texto_normalizado:
+            return "mal trato", frase
+
     lista = NIVELES_SENSIBILIDAD.get(nivel, PALABRAS_ESTRICTO)
-    palabras = re.findall(r"[a-zñ]+", _normalizar(texto))
+    palabras = re.findall(r"[a-zñ]+", texto_normalizado)
     for palabra in palabras:
         if palabra in lista:
-            return palabra
+            return "grosería", palabra
     return None

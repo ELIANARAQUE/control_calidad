@@ -26,5 +26,6 @@ numpy==1.26.4
 python-multipart==0.0.9
 pydantic-settings==2.5.2
 
-# Reportes de evaluacion por trabajador (.xlsx)
+# Reportes de evaluacion por trabajador (.xlsx), con fotos de alertas embebidas
 openpyxl==3.1.5
+pillow==12.3.0  # ya la trae ultralytics/opencv como dependencia, se fija aqui explicitamente

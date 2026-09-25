@@ -96,22 +96,31 @@ async def consumir_video(track, estacion_id: str) -> None:
             logger.info("Track de video finalizado para estacion %s", estacion_id)
             break
 
+        # El snapshot para el panel de supervisor se genera con CADA frame que llega (no solo
+        # los que YOLO alcanza a procesar a `yolo_target_fps`): antes quedaba atado al mismo
+        # limitador que la inferencia, asi que el video del panel se veia a ~3fps o menos
+        # (entrecortado/"borroso" por el movimiento entre cuadros). codificar un JPEG es
+        # barato comparado con la inferencia, asi que hacerlo a la tasa real de la camara
+        # (tipicamente 15-30fps) no le cuesta nada a la GPU/CPU.
+        frame_bgr_snapshot = None
+        try:
+            frame_bgr_snapshot = frame.to_ndarray(format="bgr24")
+            import cv2
+
+            ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", frame_bgr_snapshot, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            if ok_jpeg:
+                gestor_estaciones.actualizar_snapshot(estacion_id, buffer_jpeg.tobytes())
+        except Exception:
+            logger.exception("No se pudo generar snapshot JPEG para estacion %s", estacion_id)
+
+        if frame_bgr_snapshot is None:
+            continue  # no se pudo decodificar el frame: nada que pasarle a YOLO tampoco
+
         if not limitador.debe_procesar_ahora():
-            continue  # se descarta el frame: mantiene la VRAM/GPU libre
+            continue  # se descarta el frame para YOLO: mantiene la VRAM/GPU libre
 
         try:
-            frame_bgr = frame.to_ndarray(format="bgr24")
-
-            # Snapshot JPEG liviano para que el panel de supervisor pueda mostrar una
-            # miniatura casi en vivo de cada estacion sin necesitar un segundo canal WebRTC.
-            try:
-                import cv2
-
-                ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 70])
-                if ok_jpeg:
-                    gestor_estaciones.actualizar_snapshot(estacion_id, buffer_jpeg.tobytes())
-            except Exception:
-                logger.exception("No se pudo generar snapshot JPEG para estacion %s", estacion_id)
+            frame_bgr = frame_bgr_snapshot
 
             # La inferencia YOLO es bloqueante (CPU/GPU-bound) -> se corre en thread aparte
             resultado = await loop.run_in_executor(_executor, detector.procesar_frame, frame_bgr)
@@ -322,8 +331,9 @@ async def consumir_audio(track, estacion_id: str) -> None:
         registrar_transcripcion(estacion_id, texto)
         await bus_alertas.emitir(nuevo_evento(estacion_id, "transcripcion", {"texto": texto}))
 
-        palabra_detectada = contiene_lenguaje_inapropiado(texto, nivel=config_tiempo_real.sensibilidad_lenguaje)
-        if palabra_detectada:
+        deteccion = contiene_lenguaje_inapropiado(texto, nivel=config_tiempo_real.sensibilidad_lenguaje)
+        if deteccion:
+            categoria_deteccion, texto_detectado = deteccion
             # El detalle guardado en BD conserva la transcripcion completa (auditoria); el
             # que se muestra en vivo va corto, para no llenar el panel con frases largas.
             fragmento = texto if len(texto) <= 60 else texto[:57] + "..."
@@ -338,15 +348,19 @@ async def consumir_audio(track, estacion_id: str) -> None:
                     _executor, _guardar_captura_bytes, estacion_id, "lenguaje", info_estacion.ultimo_snapshot_jpeg
                 )
 
+            etiqueta_deteccion = "Grosería" if categoria_deteccion == "grosería" else "Mal trato"
             alerta_id = registrar_alerta(
-                estacion_id, f'Palabra "{palabra_detectada}" en: "{texto}"', tipo="lenguaje", captura_path=captura_path
+                estacion_id,
+                f'{etiqueta_deteccion} ("{texto_detectado}") en: "{texto}"',
+                tipo="lenguaje",
+                captura_path=captura_path,
             )
             await bus_alertas.emitir(
                 nuevo_evento(
                     estacion_id,
                     "alerta_lenguaje",
                     {
-                        "detalle": f'"{palabra_detectada}" — "{fragmento}"',
+                        "detalle": f'{etiqueta_deteccion}: "{texto_detectado}" — "{fragmento}"',
                         "alerta_id": alerta_id,
                         "veredicto": None,
                         "captura_url": f"/api/alertas/{alerta_id}/captura.jpg" if captura_path else None,

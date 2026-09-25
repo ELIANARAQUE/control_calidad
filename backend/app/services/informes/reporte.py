@@ -6,10 +6,14 @@ import io
 from datetime import datetime, timezone
 
 from openpyxl import Workbook
+from openpyxl.drawing.image import Image as ImagenExcel
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from app.core.db import obtener_datos_reporte_trabajador
+from app.core.db import RUTA_CAPTURAS, obtener_datos_reporte_trabajador
+
+_ALTO_FILA_CON_FOTO = 58  # puntos: suficiente para una miniatura de ~70px de alto
+_ANCHO_FOTO_COL_PX = 70
 
 _AZUL_INSTITUCIONAL = "0F1D38"
 _VERDE = "10B981"
@@ -128,7 +132,7 @@ def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
     # ---------------- Hoja "Detalle" ----------------
     ws2 = wb.create_sheet("Detalle")
     ws2.sheet_view.showGridLines = False
-    encabezados = ["Fecha", "Hora", "Categoría", "Detalle", "Veredicto"]
+    encabezados = ["Fecha", "Hora", "Categoría", "Detalle", "Veredicto", "Foto"]
     _fila_encabezado(ws2, 1, encabezados)
     ws2.freeze_panes = "A2"
 
@@ -154,12 +158,30 @@ def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
         elif veredicto == "Sin revisar":
             celda_veredicto.font = Font(italic=True, color="B45309")
 
+        # Foto de la alerta (si se pudo capturar en el momento): se embebe como imagen dentro
+        # de la celda en vez de solo guardar la ruta, para que el reporte sea autocontenido y
+        # el evaluador no tenga que ir a buscar el archivo en el servidor.
+        captura_path = evento.get("captura_path")
+        if captura_path:
+            ruta_absoluta = (RUTA_CAPTURAS / captura_path).resolve()
+            if RUTA_CAPTURAS.resolve() in ruta_absoluta.parents and ruta_absoluta.is_file():
+                try:
+                    imagen = ImagenExcel(str(ruta_absoluta))
+                    imagen.height = 70
+                    imagen.width = 70
+                    ws2.add_image(imagen, f"F{i}")
+                    ws2.row_dimensions[i].height = _ALTO_FILA_CON_FOTO
+                except Exception:
+                    ws2.cell(row=i, column=6, value="(no se pudo cargar la foto)")
+            else:
+                ws2.cell(row=i, column=6, value="(foto no disponible)")
+
         if i % 2 == 0:
             for col in range(1, 6):
                 if not ws2.cell(row=i, column=col).fill.fgColor.rgb or ws2.cell(row=i, column=col).fill.fgColor.rgb == "00000000":
                     ws2.cell(row=i, column=col).fill = PatternFill("solid", fgColor=_GRIS_CLARO)
 
-    anchos = [12, 10, 22, 60, 16]
+    anchos = [12, 10, 22, 60, 16, 12]
     for idx, ancho in enumerate(anchos, start=1):
         ws2.column_dimensions[get_column_letter(idx)].width = ancho
 
