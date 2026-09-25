@@ -229,7 +229,12 @@ async function iniciarMonitoreo() {
   }
   if (!respuesta.ok) {
     const detalle = await respuesta.json().catch(() => ({}));
-    setEstado(detalle.detail || "El servidor rechazó la conexión (código " + respuesta.status + ")", "error");
+    // FastAPI devuelve `detail` como texto en errores propios, pero como una LISTA de objetos
+    // en errores de validacion (422): sin convertirlo, la pantalla mostraba "[object Object]".
+    const mensaje = Array.isArray(detalle.detail)
+      ? detalle.detail.map((d) => `${(d.loc || []).slice(-1)[0] || "dato"}: ${d.msg}`).join("; ")
+      : detalle.detail;
+    setEstado(mensaje || "El servidor rechazó la conexión (código " + respuesta.status + ")", "error");
     btnIniciar.disabled = false;
     return;
   }

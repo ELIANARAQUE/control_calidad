@@ -54,15 +54,33 @@ def _distancia_coseno(a: list[float], b: list[float]) -> float:
     return float(1 - np.dot(va, vb) / (np.linalg.norm(va) * np.linalg.norm(vb)))
 
 
-def verificar_rostro(embedding_registrado: list[float], imagen_login_bgr: np.ndarray) -> tuple[bool, float]:
-    """Compara la foto tomada en el login contra el embedding guardado en el registro.
+def embeddings_de(rostro_guardado) -> list[list[float]]:
+    """Normaliza lo guardado en `usuarios.rostro_embedding`: registros nuevos guardan
+    `{"frontal": [...], "izquierda": [...], "derecha": [...]}`; los viejos, un solo vector."""
+    if not rostro_guardado:
+        return []
+    if isinstance(rostro_guardado, dict):
+        return [v for v in rostro_guardado.values() if v]
+    return [rostro_guardado]
 
-    Devuelve `(coincide, distancia)`: `coincide=True` si la distancia esta por debajo del
-    umbral (misma persona); `distancia` se devuelve siempre para poder loguear/depurar
-    intentos fallidos sin exponer las imagenes."""
+
+def distancia_minima(embedding: list[float], rostro_guardado) -> float:
+    candidatos = embeddings_de(rostro_guardado)
+    if not candidatos:
+        return 1.0
+    return min(_distancia_coseno(embedding, c) for c in candidatos)
+
+
+def es_misma_persona(distancia: float) -> bool:
+    return distancia <= _UMBRAL_DISTANCIA
+
+
+def verificar_rostro(rostro_guardado, imagen_login_bgr: np.ndarray) -> tuple[bool, float]:
+    """Compara la foto del login contra los rostros del registro (frontal y laterales) y se
+    queda con la distancia mas corta. Devuelve `(coincide, distancia)`."""
     embedding_login = generar_embedding(imagen_login_bgr)
     if embedding_login is None:
-        return False, 1.0  # distancia maxima: no se pudo ni ubicar una cara para comparar
+        return False, 1.0  # no se pudo ni ubicar una cara para comparar
 
-    distancia = _distancia_coseno(embedding_registrado, embedding_login)
-    return distancia <= _UMBRAL_DISTANCIA, distancia
+    distancia = distancia_minima(embedding_login, rostro_guardado)
+    return es_misma_persona(distancia), distancia

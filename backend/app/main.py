@@ -35,6 +35,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def sin_cache_para_frontend(request, call_next):
+    """Obliga al navegador a revalidar el HTML/JS del frontend en cada carga: sin esto, tras
+    actualizar el sistema seguia sirviendose de cache la version vieja de la pagina (ej. la
+    estacion de empleado con el campo "Nombre completo" y el /api/offer sin token -> 422)."""
+    respuesta = await call_next(request)
+    if not request.url.path.startswith("/api"):
+        respuesta.headers["Cache-Control"] = "no-cache"
+    return respuesta
+
+
 app.include_router(signaling.router, prefix="/api", tags=["webrtc"])
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(alertas.router, prefix="/api", tags=["alertas"])

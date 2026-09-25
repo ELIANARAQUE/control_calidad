@@ -48,7 +48,7 @@ const Core = (() => {
 
   function obtenerEstacion(estacionId) {
     if (!estaciones.has(estacionId)) {
-      estaciones.set(estacionId, { empleado: null, sede: null, modulo: null, conectada: false, pendientes: 0, eventos: [] });
+      estaciones.set(estacionId, { empleado: null, sede: null, modulo: null, conectada: false, pendientes: 0, eventos: [], emocion: null });
     }
     return estaciones.get(estacionId);
   }
@@ -69,7 +69,13 @@ const Core = (() => {
         break;
       case "desconexion":
         estacion.conectada = false;
+        estacion.emocion = null;
         break;
+      case "emocion":
+        // Estado en vivo (no es un evento para el feed): solo se guarda la ultima emocion.
+        estacion.emocion = { emocion: evento.emocion, probabilidad: evento.probabilidad, timestamp: evento.timestamp };
+        listenersEvento.forEach((cb) => cb(evento));
+        return;
       case "transcripcion":
         contadores.transcripciones++;
         estacion.eventos.unshift(evento);
@@ -175,6 +181,24 @@ const Core = (() => {
   }
   function quitarFoco() {
     sessionStorage.removeItem(CLAVE_FOCO);
+  }
+
+  const EMOCIONES = {
+    felicidad: { icono: "sentiment_very_satisfied", color: "#10b981", texto: "Felicidad" },
+    neutral: { icono: "sentiment_neutral", color: "#8890a0", texto: "Neutral" },
+    sorpresa: { icono: "sentiment_excited", color: "#2563eb", texto: "Sorpresa" },
+    tristeza: { icono: "sentiment_dissatisfied", color: "#6d28d9", texto: "Tristeza" },
+    miedo: { icono: "sentiment_worried", color: "#b45309", texto: "Miedo" },
+    enojo: { icono: "sentiment_extremely_dissatisfied", color: "#dc2626", texto: "Enojo" },
+    disgusto: { icono: "sick", color: "#dc2626", texto: "Disgusto" },
+    desprecio: { icono: "mood_bad", color: "#dc2626", texto: "Desprecio" },
+  };
+
+  function chipEmocion(estado) {
+    if (!estado) return '<span class="chip-emocion" style="color:#8890a0">Sin rostro detectado</span>';
+    const info = EMOCIONES[estado.emocion] || { icono: "face", color: "#586174", texto: estado.emocion };
+    const pct = estado.probabilidad != null ? ` ${Math.round(estado.probabilidad * 100)}%` : "";
+    return `<span class="chip-emocion" style="color:${info.color}"><span class="material-symbols-outlined text-[18px]">${info.icono}</span>${info.texto}${pct}</span>`;
   }
 
   function colorAvatar(estacionId) {
@@ -488,7 +512,7 @@ const Core = (() => {
     estaciones, contadores, conToken, apiFetch, mostrarToast,
     onEvento: (cb) => listenersEvento.push(cb),
     onListo: (cb) => listenersListo.push(cb),
-    colorAvatar, iniciales, hace, textoEvento, crearElementoEvento, enviarVeredicto,
+    colorAvatar, iniciales, hace, textoEvento, crearElementoEvento, enviarVeredicto, chipEmocion,
     obtenerFoco, establecerFoco, quitarFoco,
     iniciar,
   };

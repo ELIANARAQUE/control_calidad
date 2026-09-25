@@ -236,6 +236,25 @@ async def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
     ws3.column_dimensions["B"].width = 10
     ws3.column_dimensions["C"].width = 90
 
+    # ---------------- Hoja "Emociones" ----------------
+    # Distribucion de la emocion dominante detectada durante sus sesiones (muestreada cada
+    # ~10 s), no solo las alertas negativas: permite ver el estado emocional general.
+    ws4 = wb.create_sheet("Emociones")
+    ws4.sheet_view.showGridLines = False
+    _fila_encabezado(ws4, 1, ["Emoción", "Muestras", "Porcentaje"])
+    conteo = datos.get("emociones", {})
+    total_muestras = sum(conteo.values())
+    for fila, (emocion, cantidad) in enumerate(sorted(conteo.items(), key=lambda x: -x[1]), start=2):
+        ws4.cell(row=fila, column=1, value=emocion.capitalize())
+        ws4.cell(row=fila, column=2, value=cantidad)
+        celda_pct = ws4.cell(row=fila, column=3, value=cantidad / total_muestras if total_muestras else 0)
+        celda_pct.number_format = "0.0%"
+    if not conteo:
+        ws4.cell(row=2, column=1, value="Sin emociones registradas para este trabajador todavía.")
+    ws4.column_dimensions["A"].width = 18
+    ws4.column_dimensions["B"].width = 12
+    ws4.column_dimensions["C"].width = 14
+
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)

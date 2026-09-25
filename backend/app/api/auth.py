@@ -20,7 +20,7 @@ from app.core.cuentas import (
 router = APIRouter()
 
 _REGEX_NOMBRE = re.compile(r"^[A-Za-zÀ-ÿ\s]{1,32}$")  # letras y espacios, sin numeros/simbolos
-_REGEX_DOCUMENTO = re.compile(r"^[A-Za-z0-9]{1,15}$")  # sin espacios ni caracteres especiales
+_REGEX_DOCUMENTO = re.compile(r"^[0-9]{1,15}$")  # solo digitos: sin letras, espacios ni simbolos
 _REGEX_CORREO = re.compile(r"^[^\s@]+@[^\s@]+\.com$")  # exige "@" y ".com", sin espacios
 
 
@@ -41,7 +41,9 @@ async def registro(
     confirmar_clave: str = Form(...),
     rol: str = Form(...),
     clave_super_admin: str | None = Form(default=None),
-    foto: UploadFile = File(...),
+    foto_frontal: UploadFile = File(...),
+    foto_izquierda: UploadFile = File(...),
+    foto_derecha: UploadFile = File(...),
 ) -> dict:
     nombre = nombre.strip()
     numero_documento = numero_documento.strip()
@@ -51,7 +53,7 @@ async def registro(
         raise HTTPException(status_code=400, detail="El nombre debe tener máximo 32 letras, sin números ni símbolos")
     if not _REGEX_DOCUMENTO.match(numero_documento):
         raise HTTPException(
-            status_code=400, detail="El número de documento debe tener máximo 15 caracteres, sin espacios ni símbolos"
+            status_code=400, detail="El número de documento debe tener máximo 15 dígitos, solo números"
         )
     if not _REGEX_CORREO.match(correo):
         raise HTTPException(status_code=400, detail="El correo debe contener \"@\" y terminar en \".com\", sin espacios")
@@ -68,9 +70,13 @@ async def registro(
         if not clave_super_admin or not await verificar_clave_super_admin(clave_super_admin):
             raise HTTPException(status_code=403, detail="Clave de super-admin incorrecta")
 
-    foto_bytes = await foto.read()
-    if not foto_bytes:
-        raise HTTPException(status_code=400, detail="Debes subir o tomar una foto para el registro facial")
+    fotos_bytes = {
+        "frontal": await foto_frontal.read(),
+        "izquierda": await foto_izquierda.read(),
+        "derecha": await foto_derecha.read(),
+    }
+    if not all(fotos_bytes.values()):
+        raise HTTPException(status_code=400, detail="Debes tomar las tres fotos: frontal, lateral izquierda y lateral derecha")
 
     try:
         usuario = await crear_usuario(
@@ -80,7 +86,7 @@ async def registro(
             correo=correo,
             clave=clave,
             rol=rol,
-            foto_bytes=foto_bytes,
+            fotos_bytes=fotos_bytes,
         )
     except ErrorRegistro as err:
         raise HTTPException(status_code=400, detail=str(err)) from err

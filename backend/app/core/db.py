@@ -108,6 +108,20 @@ async def registrar_transcripcion(estacion_id: str, texto: str) -> None:
 
 
 # ============================================================================
+# Emociones (muestreo periodico de la emocion dominante, no solo alertas negativas)
+# ============================================================================
+
+def _registrar_emocion_sync(estacion_id: str, emocion: str, probabilidad: float) -> None:
+    obtener_supabase().table("emociones").insert(
+        {"estacion_id": estacion_id, "emocion": emocion, "probabilidad": round(float(probabilidad), 3), "timestamp": _ahora()}
+    ).execute()
+
+
+async def registrar_emocion(estacion_id: str, emocion: str, probabilidad: float) -> None:
+    await en_hilo(_registrar_emocion_sync, estacion_id, emocion, probabilidad)
+
+
+# ============================================================================
 # Eventos de conexion (conexion/desconexion de estaciones)
 # ============================================================================
 
@@ -447,7 +461,14 @@ def _obtener_datos_reporte_trabajador_sync(nombre: str) -> dict:
     estaciones = sorted({s["estacion_id"] for s in sesiones_trabajador})
     alertas: list[dict] = []
     transcripciones: list[dict] = []
+    emociones: list[dict] = []
     if estaciones:
+        emociones = (
+            supabase.table("emociones")
+            .select("estacion_id, emocion, timestamp")
+            .in_("estacion_id", estaciones)
+            .execute()
+        ).data
         alertas = (
             supabase.table("alertas")
             .select("estacion_id, tipo, detalle, timestamp, veredicto, captura_path")
@@ -506,7 +527,17 @@ def _obtener_datos_reporte_trabajador_sync(nombre: str) -> dict:
         for s in sesiones_trabajador
     ]
 
-    return {"nombre": nombre, "sesiones": sesiones_para_reporte, "eventos": eventos}
+    conteo_emociones: dict[str, int] = {}
+    for fila in emociones:
+        if _dentro_de_alguna_sesion(fila["estacion_id"], fila["timestamp"]):
+            conteo_emociones[fila["emocion"]] = conteo_emociones.get(fila["emocion"], 0) + 1
+
+    return {
+        "nombre": nombre,
+        "sesiones": sesiones_para_reporte,
+        "eventos": eventos,
+        "emociones": conteo_emociones,
+    }
 
 
 async def obtener_datos_reporte_trabajador(nombre: str) -> dict:

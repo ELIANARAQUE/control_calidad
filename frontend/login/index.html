@@ -11,6 +11,7 @@
   body { font-family: "Manrope", sans-serif; }
   h1, h2, .titulo { font-family: "Space Grotesk", sans-serif; }
   .oculto { display: none !important; }
+  input::-ms-reveal, input::-ms-clear { display: none; }
 </style>
 </head>
 <body class="bg-[#0f1d38] min-h-screen flex items-center justify-center p-4">
@@ -26,15 +27,15 @@
     </div>
   </div>
 
-  <form id="formLogin" class="flex flex-col gap-4">
+  <form id="formLogin" class="flex flex-col gap-4" autocomplete="off">
     <div class="flex flex-col gap-1">
       <label class="text-sm font-semibold text-[#0f1c30]" for="correo">Correo electrónico</label>
-      <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="correo" type="email" autocomplete="username" required />
+      <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="correo" type="email" autocomplete="off" required />
     </div>
     <div class="flex flex-col gap-1">
       <label class="text-sm font-semibold text-[#0f1c30]" for="clave">Contraseña</label>
       <div class="relative">
-        <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 pr-10 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="clave" type="password" autocomplete="current-password" required />
+        <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 pr-10 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="clave" type="password" autocomplete="new-password" required />
         <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-[#8890a0]" id="btnOjoClave" aria-label="Mostrar contraseña">
           <span class="material-symbols-outlined text-[20px]">visibility</span>
         </button>
@@ -96,6 +97,16 @@ btnOjoClave.addEventListener("click", () => {
 let stream = null;
 let datosSesionPendiente = null; // {usuario_id, nombre, rol}
 
+// No se guardan usuarios ni contraseñas: los campos se limpian al cargar la pagina (incluido
+// cuando el navegador la restaura desde su cache al volver atras) y apenas se envian.
+function limpiarCampos() {
+  document.getElementById("correo").value = "";
+  claveInput.value = "";
+  claveInput.type = "password";
+  btnOjoClave.querySelector(".material-symbols-outlined").textContent = "visibility";
+}
+window.addEventListener("pageshow", limpiarCampos);
+
 async function abrirCamara() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
@@ -120,6 +131,7 @@ formLogin.addEventListener("submit", async (ev) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ correo: document.getElementById("correo").value.trim(), clave: claveInput.value }),
     });
+    limpiarCampos();
     const datos = await resp.json();
     if (!resp.ok) throw new Error(datos.detail || "No se pudo iniciar sesión");
 

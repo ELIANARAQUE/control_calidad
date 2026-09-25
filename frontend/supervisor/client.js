@@ -130,6 +130,7 @@ function renderizarGrid() {
         }
       </div>
       <div class="cuerpo">
+        ${datos.conectada ? `<div class="flex items-center justify-between gap-2"><span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Emoción actual</span><span data-emocion="${id}">${Core.chipEmocion(datos.emocion)}</span></div>` : ""}
         <button type="button" class="btn-veredicto btn-enfocar w-max" data-enfocar="${id}">
           <span class="material-symbols-outlined text-[14px] align-middle">center_focus_strong</span>
           Monitorear solo esta
@@ -222,7 +223,16 @@ async function cargarCapacidadMaxima() {
   }
 }
 
-Core.onEvento(renderizarTodo);
+Core.onEvento((evento) => {
+  // La emocion llega cada pocos segundos por estacion: se actualiza solo su etiqueta, sin
+  // redibujar el grid completo (eso recrearia los <img> del video y lo haria parpadear).
+  if (evento.tipo === "emocion") {
+    const chip = document.querySelector(`[data-emocion="${evento.estacion_id}"]`);
+    if (chip) chip.innerHTML = Core.chipEmocion(Core.estaciones.get(evento.estacion_id)?.emocion);
+    return;
+  }
+  renderizarTodo();
+});
 Core.onListo(renderizarTodo);
 Core.iniciar(() => {
   cargarCapacidadMaxima();

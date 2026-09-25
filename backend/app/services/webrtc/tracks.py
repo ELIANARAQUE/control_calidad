@@ -15,7 +15,7 @@ import av
 import numpy as np
 
 from app.core.config import settings
-from app.core.db import RUTA_CAPTURAS, registrar_alerta, registrar_transcripcion
+from app.core.db import RUTA_CAPTURAS, registrar_alerta, registrar_emocion, registrar_transcripcion
 from app.core.state import bus_alertas, config_tiempo_real, gestor_estaciones, nuevo_evento
 from app.services.emocion.detector import EMOCIONES_NEGATIVAS, DetectorEmocion, recortar_cara
 from app.services.stt.lenguaje import contiene_lenguaje_inapropiado
@@ -108,6 +108,13 @@ async def consumir_video(track, estacion_id: str) -> None:
     # vuelva y se vuelva a ir, para no inundar el panel con la misma alerta cada pocos segundos).
     ausente_desde: float | None = None
     alerta_ausencia_enviada = False
+
+    # Emocion "en vivo" para el panel (no solo las alertas negativas): se envia cuando cambia la
+    # emocion dominante o cada pocos segundos, y se guarda en `emociones` con menos frecuencia
+    # para no llenar la base de datos con una fila por frame.
+    ultima_emocion_enviada: str | None = None
+    ultimo_ts_emocion_enviada = 0.0
+    ultimo_ts_emocion_guardada = 0.0
 
     while True:
         try:
@@ -209,6 +216,17 @@ async def consumir_video(track, estacion_id: str) -> None:
                         estacion_id, etiqueta, probabilidad, settings.emocion_umbral_probabilidad,
                         racha_emocion, settings.emocion_frames_consecutivos,
                     )
+
+                    if etiqueta != ultima_emocion_enviada or (ahora - ultimo_ts_emocion_enviada) >= 3.0:
+                        ultima_emocion_enviada = etiqueta
+                        ultimo_ts_emocion_enviada = ahora
+                        await bus_alertas.emitir(
+                            nuevo_evento(estacion_id, "emocion", {"emocion": etiqueta, "probabilidad": round(probabilidad, 2)})
+                        )
+                    if (ahora - ultimo_ts_emocion_guardada) >= 10.0:
+                        ultimo_ts_emocion_guardada = ahora
+                        await registrar_emocion(estacion_id, etiqueta, probabilidad)
+
                     if etiqueta in EMOCIONES_NEGATIVAS and probabilidad >= settings.emocion_umbral_probabilidad:
                         racha_emocion += 1
                     else:

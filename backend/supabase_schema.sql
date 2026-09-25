@@ -72,7 +72,8 @@ create table if not exists usuarios (
     clave_hash text not null,
     rol text not null check (rol in ('empleado', 'admin')),
     foto_url text,
-    rostro_embedding jsonb,
+    fotos jsonb,  -- {"frontal": ruta, "izquierda": ruta, "derecha": ruta} en Storage
+    rostro_embedding jsonb,  -- {"frontal": [...], "izquierda": [...], "derecha": [...]}
     creado_en timestamptz not null default now()
 );
 
@@ -119,6 +120,17 @@ create table if not exists transcripciones (
 
 create index if not exists idx_transcripciones_estacion on transcripciones(estacion_id);
 create index if not exists idx_transcripciones_timestamp on transcripciones("timestamp");
+
+create table if not exists emociones (
+    id bigserial primary key,
+    estacion_id text not null,
+    emocion text not null,
+    probabilidad real,
+    "timestamp" timestamptz not null default now()
+);
+
+create index if not exists idx_emociones_estacion on emociones(estacion_id);
+create index if not exists idx_emociones_timestamp on emociones("timestamp");
 
 create table if not exists opciones_configurables (
     tipo text not null,

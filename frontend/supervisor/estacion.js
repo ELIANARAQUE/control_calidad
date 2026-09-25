@@ -106,6 +106,7 @@ function actualizarBannerSesion() {
 function renderizar() {
   if (!estacionId) return;
   renderizarCabecera();
+  renderizarEmocion();
   actualizarBannerSesion();
 
   const datos = Core.estaciones.get(estacionId);
@@ -125,8 +126,15 @@ function renderizar() {
   }
 }
 
+function renderizarEmocion() {
+  const el = document.getElementById("emocionActual");
+  if (el) el.innerHTML = Core.chipEmocion(Core.estaciones.get(estacionId)?.emocion);
+}
+
 Core.onEvento((evento) => {
-  if (evento.estacion_id === estacionId) renderizar();
+  if (evento.estacion_id !== estacionId) return;
+  if (evento.tipo === "emocion") return renderizarEmocion();
+  renderizar();
 });
 Core.onListo(async () => {
   await cargarSesion();

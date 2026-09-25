@@ -69,6 +69,6 @@ buscadorEl.addEventListener("input", () => {
   renderizar();
 });
 
-Core.onEvento(renderizar);
+Core.onEvento((e) => { if (e.tipo !== "emocion") renderizar(); });
 Core.onListo(renderizar);
 Core.iniciar(renderizar);

@@ -3,7 +3,7 @@
 // super-admin cuando se elige el rol "Administrador".
 
 const REGEX_NOMBRE = /^[A-Za-zÀ-ÿ\s]*$/;
-const REGEX_DOCUMENTO = /^[A-Za-z0-9]*$/;
+const REGEX_DOCUMENTO = /^[0-9]*$/;
 
 const form = document.getElementById("formRegistro");
 const nombreEl = document.getElementById("nombre");
@@ -13,10 +13,17 @@ const correoEl = document.getElementById("correo");
 const claveEl = document.getElementById("clave");
 const confirmarClaveEl = document.getElementById("confirmarClave");
 const errorRegistro = document.getElementById("errorRegistro");
-const previewFoto = document.getElementById("previewFoto");
-const textoBotonFoto = document.getElementById("textoBotonFoto");
 
-let fotoBlob = null;
+// Tres fotos obligatorias: frontal y ambos perfiles (asi el login facial reconoce a la
+// persona aunque no quede perfectamente de frente a la camara).
+const fotos = { frontal: null, izquierda: null, derecha: null };
+const INSTRUCCION_ANGULO = {
+  frontal: "Foto FRONTAL: mira directo a la cámara, rostro completo y centrado.",
+  izquierda: "Foto LATERAL IZQUIERDA: gira la cabeza hacia tu izquierda (se ve tu perfil).",
+  derecha: "Foto LATERAL DERECHA: gira la cabeza hacia tu derecha (se ve tu perfil).",
+};
+const TITULO_ANGULO = { frontal: "Foto frontal", izquierda: "Foto lateral izquierda", derecha: "Foto lateral derecha" };
+let anguloActual = "frontal";
 
 // --- Validaciones en vivo: se bloquea la tecla en vez de solo avisar despues ---
 nombreEl.addEventListener("input", () => {
@@ -27,7 +34,7 @@ nombreEl.addEventListener("input", () => {
 
 numeroDocumentoEl.addEventListener("input", () => {
   if (!REGEX_DOCUMENTO.test(numeroDocumentoEl.value)) {
-    numeroDocumentoEl.value = numeroDocumentoEl.value.replace(/[^A-Za-z0-9]/g, "");
+    numeroDocumentoEl.value = numeroDocumentoEl.value.replace(/[^0-9]/g, "");
   }
 });
 
@@ -71,9 +78,23 @@ const canvasRegistro = document.getElementById("canvasRegistro");
 const btnTomarFoto = document.getElementById("btnTomarFoto");
 let streamRegistro = null;
 
-document.getElementById("btnAbrirFoto").addEventListener("click", () => {
-  modalFoto.classList.remove("oculto");
+document.querySelectorAll(".slot-foto").forEach((slot) => {
+  slot.addEventListener("click", () => {
+    anguloActual = slot.dataset.angulo;
+    document.getElementById("tituloModalFoto").textContent = TITULO_ANGULO[anguloActual];
+    document.getElementById("instruccionAngulo").textContent = INSTRUCCION_ANGULO[anguloActual];
+    modalFoto.classList.remove("oculto");
+  });
 });
+
+function guardarFoto(blob) {
+  fotos[anguloActual] = blob;
+  const slot = document.querySelector(`.slot-foto[data-angulo="${anguloActual}"]`);
+  slot.classList.remove("border-dashed");
+  slot.classList.add("border-[#10b981]");
+  slot.innerHTML = `<img class="w-full h-full object-cover" src="${URL.createObjectURL(blob)}" alt="${TITULO_ANGULO[anguloActual]}" />`;
+  cerrarModalFoto();
+}
 
 function cerrarModalFoto() {
   streamRegistro?.getTracks().forEach((t) => t.stop());
@@ -92,12 +113,9 @@ document.getElementById("btnModoArchivo").addEventListener("click", () => {
 
 inputArchivoFoto.addEventListener("change", () => {
   const archivo = inputArchivoFoto.files[0];
+  inputArchivoFoto.value = "";
   if (!archivo) return;
-  fotoBlob = archivo;
-  previewFoto.src = URL.createObjectURL(archivo);
-  previewFoto.classList.remove("oculto");
-  textoBotonFoto.textContent = "Cambiar foto";
-  cerrarModalFoto();
+  guardarFoto(archivo);
 });
 
 document.getElementById("btnModoCamara").addEventListener("click", async () => {
@@ -115,13 +133,7 @@ btnTomarFoto.addEventListener("click", () => {
   canvasRegistro.width = videoRegistro.videoWidth;
   canvasRegistro.height = videoRegistro.videoHeight;
   canvasRegistro.getContext("2d").drawImage(videoRegistro, 0, 0);
-  canvasRegistro.toBlob((blob) => {
-    fotoBlob = blob;
-    previewFoto.src = URL.createObjectURL(blob);
-    previewFoto.classList.remove("oculto");
-    textoBotonFoto.textContent = "Cambiar foto";
-    cerrarModalFoto();
-  }, "image/jpeg", 0.92);
+  canvasRegistro.toBlob((blob) => guardarFoto(blob), "image/jpeg", 0.92);
 });
 
 // --- Modal de super-admin (solo si el rol elegido es "admin") ---
@@ -167,7 +179,8 @@ form.addEventListener("submit", async (ev) => {
   }
   if (claveEl.value.length === 0) return mostrarError("La contraseña es obligatoria");
   if (claveEl.value !== confirmarClaveEl.value) return mostrarError("Las contraseñas no coinciden");
-  if (!fotoBlob) return mostrarError('Debes subir o tomar una foto en "Subir foto"');
+  const faltantes = Object.keys(fotos).filter((a) => !fotos[a]).map((a) => TITULO_ANGULO[a].toLowerCase());
+  if (faltantes.length) return mostrarError("Faltan fotos: " + faltantes.join(", "));
 
   let claveSuperAdmin = null;
   if (rol === "admin") {
@@ -184,7 +197,9 @@ form.addEventListener("submit", async (ev) => {
   datosForm.append("confirmar_clave", confirmarClaveEl.value);
   datosForm.append("rol", rol);
   if (claveSuperAdmin) datosForm.append("clave_super_admin", claveSuperAdmin);
-  datosForm.append("foto", fotoBlob, "rostro.jpg");
+  datosForm.append("foto_frontal", fotos.frontal, "frontal.jpg");
+  datosForm.append("foto_izquierda", fotos.izquierda, "izquierda.jpg");
+  datosForm.append("foto_derecha", fotos.derecha, "derecha.jpg");
 
   try {
     const resp = await fetch("/api/auth/registro", { method: "POST", body: datosForm });

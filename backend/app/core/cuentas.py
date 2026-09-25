@@ -12,9 +12,16 @@ import numpy as np
 
 from app.core.seguridad import cifrar, descifrar, hash_busqueda, hashear_clave, verificar_clave
 from app.core.supabase_client import en_hilo, obtener_supabase
-from app.services.rostros.reconocimiento import generar_embedding, verificar_rostro
+from app.services.rostros.reconocimiento import (
+    distancia_minima,
+    es_misma_persona,
+    generar_embedding,
+    verificar_rostro,
+)
 
 NOMBRE_BUCKET_FOTOS = "fotos-empleados"
+ANGULOS_FOTO = ("frontal", "izquierda", "derecha")
+_NOMBRE_ANGULO = {"frontal": "frontal", "izquierda": "lateral izquierda", "derecha": "lateral derecha"}
 
 
 class ErrorRegistro(Exception):
@@ -62,6 +69,13 @@ async def verificar_clave_super_admin(clave: str) -> bool:
 # Registro
 # ============================================================================
 
+def _rostro_ya_registrado(supabase, embedding_frontal: list[float]) -> bool:
+    """Un mismo rostro no puede tener dos cuentas: se compara contra todos los rostros ya
+    registrados (con la misma regla de distancia que usa el login)."""
+    filas = supabase.table("usuarios").select("rostro_embedding").execute().data
+    return any(es_misma_persona(distancia_minima(embedding_frontal, f["rostro_embedding"])) for f in filas)
+
+
 def _crear_usuario_sync(
     nombre: str,
     tipo_documento_id: int,
@@ -69,7 +83,7 @@ def _crear_usuario_sync(
     correo: str,
     clave: str,
     rol: str,
-    foto_bytes: bytes,
+    fotos_bytes: dict[str, bytes],
 ) -> dict:
     supabase = obtener_supabase()
 
@@ -86,23 +100,34 @@ def _crear_usuario_sync(
     if ya_existe_correo.data:
         raise ErrorRegistro("Ya existe una cuenta registrada con ese correo electrónico")
 
-    imagen = _decodificar_imagen(foto_bytes)
-    embedding = generar_embedding(imagen)
-    if embedding is None:
-        raise ErrorRegistro(
-            "No se detectó ningún rostro en la foto. Asegúrate de estar en un sitio bien "
-            "iluminado, de frente a la cámara, e intenta de nuevo."
-        )
+    imagenes: dict[str, np.ndarray] = {}
+    embeddings: dict[str, list[float]] = {}
+    for angulo in ANGULOS_FOTO:
+        if not fotos_bytes.get(angulo):
+            raise ErrorRegistro(f"Falta la foto {_NOMBRE_ANGULO[angulo]}")
+        imagenes[angulo] = _decodificar_imagen(fotos_bytes[angulo])
+        embedding = generar_embedding(imagenes[angulo])
+        if embedding is None:
+            raise ErrorRegistro(
+                f"No se detectó un rostro en la foto {_NOMBRE_ANGULO[angulo]}. Asegúrate de estar "
+                "en un sitio iluminado, con fondo blanco si es posible, y de que se vea tu cara completa."
+            )
+        embeddings[angulo] = embedding
+
+    if _rostro_ya_registrado(supabase, embeddings["frontal"]):
+        raise ErrorRegistro("Usuario ya está registrado: este rostro ya tiene una cuenta")
 
     usuario_id = str(uuid.uuid4())
-    ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", imagen, [cv2.IMWRITE_JPEG_QUALITY, 90])
-    if not ok_jpeg:
-        raise ErrorRegistro("No se pudo procesar la foto enviada")
-
-    ruta_storage = f"{usuario_id}/rostro.jpg"
-    supabase.storage.from_(NOMBRE_BUCKET_FOTOS).upload(
-        ruta_storage, buffer_jpeg.tobytes(), {"content-type": "image/jpeg", "upsert": "true"}
-    )
+    rutas_fotos: dict[str, str] = {}
+    for angulo, imagen in imagenes.items():
+        ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", imagen, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        if not ok_jpeg:
+            raise ErrorRegistro(f"No se pudo procesar la foto {_NOMBRE_ANGULO[angulo]}")
+        ruta = f"{usuario_id}/{angulo}.jpg"
+        supabase.storage.from_(NOMBRE_BUCKET_FOTOS).upload(
+            ruta, buffer_jpeg.tobytes(), {"content-type": "image/jpeg", "upsert": "true"}
+        )
+        rutas_fotos[angulo] = ruta
 
     fila = {
         "id": usuario_id,
@@ -114,8 +139,9 @@ def _crear_usuario_sync(
         "correo_hash": hash_correo,
         "clave_hash": hashear_clave(clave),
         "rol": rol,
-        "foto_url": ruta_storage,
-        "rostro_embedding": embedding,
+        "foto_url": rutas_fotos["frontal"],
+        "fotos": rutas_fotos,
+        "rostro_embedding": embeddings,
     }
     respuesta = supabase.table("usuarios").insert(fila).execute()
     return respuesta.data[0]
@@ -128,14 +154,14 @@ async def crear_usuario(
     correo: str,
     clave: str,
     rol: str,
-    foto_bytes: bytes,
+    fotos_bytes: dict[str, bytes],
 ) -> dict:
     """Crea la cuenta (empleado o admin -la clave de super-admin ya se debe haber validado
-    ANTES de llamar a esto si rol == 'admin', ver el endpoint de registro). Lanza
-    `ErrorRegistro` si el correo/documento ya existen o si la foto no tiene un rostro
-    detectable."""
+    ANTES de llamar a esto si rol == 'admin'). `fotos_bytes` trae las tres fotos del registro
+    ('frontal', 'izquierda', 'derecha'). Lanza `ErrorRegistro` si el correo/documento ya
+    existen, si alguna foto no tiene un rostro detectable, o si ese rostro ya esta registrado."""
     return await en_hilo(
-        _crear_usuario_sync, nombre, tipo_documento_id, numero_documento, correo, clave, rol, foto_bytes
+        _crear_usuario_sync, nombre, tipo_documento_id, numero_documento, correo, clave, rol, fotos_bytes
     )
 
 

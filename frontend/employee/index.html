@@ -59,7 +59,6 @@ tailwind.config = {
   </div>
   <div class="flex items-center gap-space-sm shrink-0">
     <span class="punto w-2.5 h-2.5 rounded-full bg-outline shrink-0" id="punto"></span>
-    <a class="font-label-sm text-label-sm text-white/70 hover:text-white transition-colors whitespace-nowrap" href="/supervisor/">Panel de Supervisor →</a>
   </div>
 </header>
 <div class="bg-surface-container-low border-b border-surface-container-high px-space-lg py-space-xs">
@@ -103,9 +102,7 @@ tailwind.config = {
             <div class="relative flex items-center">
               <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute left-space-md pointer-events-none">apartment</span>
               <select class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md pl-11 pr-8 py-space-sm rounded-lg focus:outline-none appearance-none cursor-pointer" id="sedeSelect">
-                <option value="Sede Principal">Sede Principal</option>
-                <option value="Campus Norte">Campus Norte</option>
-                <option value="Atención Virtual">Atención Virtual</option>
+                <option value="">Cargando…</option>
               </select>
               <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute right-space-sm pointer-events-none">expand_more</span>
             </div>
@@ -115,10 +112,7 @@ tailwind.config = {
             <div class="relative flex items-center">
               <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute left-space-md pointer-events-none">desktop_windows</span>
               <select class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md pl-11 pr-8 py-space-sm rounded-lg focus:outline-none appearance-none cursor-pointer" id="moduloSelect">
-                <option value="Admisiones y Registro">Admisiones y Registro</option>
-                <option value="Financiera y Crédito">Financiera y Crédito</option>
-                <option value="Soporte Técnico">Soporte Técnico</option>
-                <option value="Bienestar Universitario">Bienestar Universitario</option>
+                <option value="">Cargando…</option>
               </select>
               <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute right-space-sm pointer-events-none">expand_more</span>
             </div>
@@ -343,6 +337,6 @@ tailwind.config = {
   </footer>
 </main>
 
-<script src="client.js?v=7"></script>
+<script src="client.js?v=8"></script>
 </body>
 </html>

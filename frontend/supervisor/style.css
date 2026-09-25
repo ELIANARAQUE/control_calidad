@@ -243,3 +243,12 @@ body {
   font-size: 0.85rem;
   padding: 1.5rem 0;
 }
+
+/* --- Emocion en vivo del empleado (tarjetas del grid y centro de control por estacion) --- */
+.chip-emocion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
