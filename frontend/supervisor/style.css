@@ -46,12 +46,6 @@ body {
   color: #ffffff;
 }
 
-.btn-sensibilidad.activo,
-.btn-sensibilidad-panel.activo {
-  background: #10b981;
-  color: #00220f;
-}
-
 /* --- Tarjeta de estación (grid "Terminales en Transmisión") --- */
 .tarjeta-estacion {
   background: #fff;

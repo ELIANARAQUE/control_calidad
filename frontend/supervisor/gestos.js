@@ -1,0 +1,46 @@
+// Pagina "Gestos y Expresiones": alertas de movimiento brusco (postura) y expresión facial
+// negativa, con botones de veredicto.
+
+const feedEl = document.getElementById("feed");
+const contadorAlertasEl = document.getElementById("contadorAlertas");
+const buscadorEl = document.getElementById("buscador");
+let filtroBusqueda = "";
+
+function renderizar() {
+  const combinado = [];
+  for (const [id, datos] of Core.estaciones) {
+    for (const evento of datos.eventos) {
+      if (evento.tipo === "alerta_postura" || evento.tipo === "alerta_expresion") {
+        combinado.push({ ...evento, estacion_id: evento.estacion_id || id });
+      }
+    }
+  }
+  combinado.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  const filtrado = filtroBusqueda
+    ? combinado.filter((e) => {
+        const nombre = Core.estaciones.get(e.estacion_id)?.empleado || e.estacion_id;
+        return (nombre + " " + e.detalle).toLowerCase().includes(filtroBusqueda);
+      })
+    : combinado;
+
+  const pendientes = combinado.filter((e) => !e.veredicto).length;
+  contadorAlertasEl.textContent = `${combinado.length} alerta${combinado.length === 1 ? "" : "s"} de gestos` + (pendientes ? ` · ${pendientes} sin revisar` : "");
+
+  feedEl.innerHTML = "";
+  for (const evento of filtrado.slice(0, 200)) {
+    feedEl.appendChild(Core.crearElementoEvento(evento, true, renderizar));
+  }
+  if (filtrado.length === 0) {
+    feedEl.innerHTML = '<p class="vacio-feed">Sin alertas de gestos todavía.</p>';
+  }
+}
+
+buscadorEl.addEventListener("input", () => {
+  filtroBusqueda = buscadorEl.value.trim().toLowerCase();
+  renderizar();
+});
+
+Core.onEvento(renderizar);
+Core.onListo(renderizar);
+Core.iniciar(renderizar);

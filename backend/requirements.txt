@@ -25,3 +25,6 @@ numpy==1.26.4
 # Utilidades
 python-multipart==0.0.9
 pydantic-settings==2.5.2
+
+# Reportes de evaluacion por trabajador (.xlsx)
+openpyxl==3.1.5

@@ -208,15 +208,150 @@ def guardar_opciones(tipo: str, valores: list[str]) -> None:
             )
 
 
-def listar_alertas_para_informe() -> list[dict]:
-    """Todas las alertas (con su veredicto, si ya se reviso) para el informe descargable
-    del supervisor, mas reciente primero."""
+def listar_trabajadores_para_informe() -> list[dict]:
+    """Un resumen por trabajador (agrupado por nombre, que es lo que identifica a la persona
+    a traves de sus distintas sesiones/estaciones) para poblar la lista de 'Historial y
+    Reportes': con cuantas sesiones, alertas y desde cuando tiene actividad registrada.
+    """
     with _conexion() as conn:
         conn.row_factory = sqlite3.Row
-        filas = conn.execute(
-            "SELECT id, estacion_id, tipo, detalle, timestamp, veredicto FROM alertas ORDER BY timestamp DESC"
+        conexiones = conn.execute(
+            "SELECT estacion_id, empleado_nombre, sede, modulo, timestamp FROM eventos_conexion "
+            "WHERE tipo = 'conexion' ORDER BY timestamp"
         ).fetchall()
-        return [dict(fila) for fila in filas]
+        alertas = conn.execute("SELECT estacion_id, tipo, veredicto FROM alertas").fetchall()
+        transcripciones = conn.execute("SELECT estacion_id FROM transcripciones").fetchall()
+
+    # Cada estacion queda asociada al ultimo nombre con el que se conecto (cubre el caso
+    # normal de una estacion == una persona; si el mismo equipo cambio de dueño, las alertas
+    # viejas se cuentan con el nombre que tenian en ese momento en su ULTIMA conexion, que es
+    # la aproximacion mas simple sin guardar el nombre directamente en cada alerta).
+    estacion_a_nombre: dict[str, str] = {}
+    trabajadores: dict[str, dict] = {}
+
+    for fila in conexiones:
+        nombre = (fila["empleado_nombre"] or "Sin identificar").strip() or "Sin identificar"
+        estacion_a_nombre[fila["estacion_id"]] = nombre
+        info = trabajadores.setdefault(
+            nombre,
+            {
+                "nombre": nombre,
+                "estaciones": set(),
+                "sedes": set(),
+                "modulos": set(),
+                "primera_conexion": fila["timestamp"],
+                "ultima_conexion": fila["timestamp"],
+                "sesiones": 0,
+                "alertas_postura": 0,
+                "alertas_lenguaje": 0,
+                "alertas_expresion": 0,
+                "transcripciones": 0,
+            },
+        )
+        info["estaciones"].add(fila["estacion_id"])
+        if fila["sede"]:
+            info["sedes"].add(fila["sede"])
+        if fila["modulo"]:
+            info["modulos"].add(fila["modulo"])
+        info["primera_conexion"] = min(info["primera_conexion"], fila["timestamp"])
+        info["ultima_conexion"] = max(info["ultima_conexion"], fila["timestamp"])
+        info["sesiones"] += 1
+
+    for fila in alertas:
+        nombre = estacion_a_nombre.get(fila["estacion_id"], "Sin identificar")
+        info = trabajadores.setdefault(
+            nombre,
+            {
+                "nombre": nombre, "estaciones": {fila["estacion_id"]}, "sedes": set(), "modulos": set(),
+                "primera_conexion": None, "ultima_conexion": None, "sesiones": 0,
+                "alertas_postura": 0, "alertas_lenguaje": 0, "alertas_expresion": 0, "transcripciones": 0,
+            },
+        )
+        clave = f"alertas_{fila['tipo']}"
+        if clave in info:
+            info[clave] += 1
+
+    for fila in transcripciones:
+        nombre = estacion_a_nombre.get(fila["estacion_id"], "Sin identificar")
+        if nombre in trabajadores:
+            trabajadores[nombre]["transcripciones"] += 1
+
+    resultado = []
+    for info in trabajadores.values():
+        total_alertas = info["alertas_postura"] + info["alertas_lenguaje"] + info["alertas_expresion"]
+        resultado.append(
+            {
+                "nombre": info["nombre"],
+                "sedes": sorted(info["sedes"]),
+                "modulos": sorted(info["modulos"]),
+                "primera_conexion": info["primera_conexion"],
+                "ultima_conexion": info["ultima_conexion"],
+                "sesiones": info["sesiones"],
+                "total_alertas": total_alertas,
+                "alertas_postura": info["alertas_postura"],
+                "alertas_lenguaje": info["alertas_lenguaje"],
+                "alertas_expresion": info["alertas_expresion"],
+                "transcripciones": info["transcripciones"],
+            }
+        )
+    resultado.sort(key=lambda t: t["ultima_conexion"] or "", reverse=True)
+    return resultado
+
+
+def obtener_datos_reporte_trabajador(nombre: str) -> dict:
+    """Todo lo necesario para armar el reporte .xlsx de un trabajador: sus sesiones
+    (conexion/desconexion), y cada alerta/transcripcion de todas las estaciones que alguna
+    vez uso con ese nombre, ordenado cronologicamente."""
+    with _conexion() as conn:
+        conn.row_factory = sqlite3.Row
+        estaciones_del_trabajador = {
+            fila["estacion_id"]
+            for fila in conn.execute(
+                "SELECT DISTINCT estacion_id FROM eventos_conexion WHERE empleado_nombre = ?", (nombre,)
+            ).fetchall()
+        }
+
+        sesiones = conn.execute(
+            "SELECT estacion_id, tipo, timestamp, sede, modulo, acepto_habeas_data FROM eventos_conexion "
+            "WHERE empleado_nombre = ? ORDER BY timestamp",
+            (nombre,),
+        ).fetchall()
+
+        eventos: list[dict] = []
+        if estaciones_del_trabajador:
+            marcadores = ",".join("?" * len(estaciones_del_trabajador))
+            filas_alertas = conn.execute(
+                f"SELECT estacion_id, tipo, detalle, timestamp, veredicto FROM alertas "
+                f"WHERE estacion_id IN ({marcadores}) ORDER BY timestamp",
+                tuple(estaciones_del_trabajador),
+            ).fetchall()
+            for fila in filas_alertas:
+                eventos.append(
+                    {
+                        "timestamp": fila["timestamp"],
+                        "categoria": f"Alerta de {fila['tipo']}",
+                        "detalle": fila["detalle"],
+                        "veredicto": fila["veredicto"] or "Sin revisar",
+                    }
+                )
+
+            filas_transcripciones = conn.execute(
+                f"SELECT estacion_id, texto, timestamp FROM transcripciones "
+                f"WHERE estacion_id IN ({marcadores}) ORDER BY timestamp",
+                tuple(estaciones_del_trabajador),
+            ).fetchall()
+            for fila in filas_transcripciones:
+                eventos.append(
+                    {"timestamp": fila["timestamp"], "categoria": "Transcripción", "detalle": fila["texto"], "veredicto": ""}
+                )
+
+        eventos.sort(key=lambda e: e["timestamp"])
+
+    return {
+        "nombre": nombre,
+        "sesiones": [dict(fila) for fila in sesiones],
+        "eventos": eventos,
+    }
 
 
 inicializar_db()

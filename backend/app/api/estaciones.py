@@ -1,19 +1,19 @@
 """Endpoints de apoyo al panel de supervisor que no son ni senalizacion WebRTC ni alertas:
 listado de estaciones activas, miniatura de video casi en vivo, notificaciones globales a las
-estaciones de empleado, sensibilidad del filtro de lenguaje ajustable en caliente, e informe
-descargable de alertas.
+estaciones de empleado, sensibilidad del filtro de lenguaje ajustable en caliente, y reportes
+de evaluacion por trabajador.
 """
-import csv
-import io
 import logging
+import urllib.parse
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.core.auth import requerir_admin
-from app.core.db import guardar_opciones, listar_alertas_para_informe, obtener_opciones
+from app.core.db import guardar_opciones, listar_trabajadores_para_informe, obtener_opciones
 from app.core.state import config_tiempo_real, gestor_estaciones, notificador_estaciones
+from app.services.informes.reporte import generar_reporte_trabajador_xlsx
 from app.services.stt.lenguaje import NIVELES_SENSIBILIDAD
 
 logger = logging.getLogger(__name__)
@@ -109,17 +109,20 @@ async def actualizar_sensibilidad(cuerpo: Sensibilidad, _admin: str = Depends(re
     return {"nivel": config_tiempo_real.sensibilidad_lenguaje}
 
 
-@router.get("/informes/alertas.csv")
-async def informe_alertas_csv(_admin: str = Depends(requerir_admin)) -> StreamingResponse:
-    filas = listar_alertas_para_informe()
-    buffer = io.StringIO()
-    escritor = csv.writer(buffer)
-    escritor.writerow(["id", "estacion_id", "tipo", "detalle", "timestamp", "veredicto"])
-    for fila in filas:
-        escritor.writerow([fila["id"], fila["estacion_id"], fila["tipo"], fila["detalle"], fila["timestamp"], fila["veredicto"] or ""])
-    buffer.seek(0)
-    return StreamingResponse(
-        buffer,
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=informe_alertas.csv"},
+@router.get("/informes/trabajadores")
+async def listar_trabajadores(_admin: str = Depends(requerir_admin)) -> list[dict]:
+    """Un resumen por trabajador para la pagina 'Historial y Reportes': de ahi el supervisor
+    elige a quien descargarle el reporte individual."""
+    return listar_trabajadores_para_informe()
+
+
+@router.get("/informes/trabajadores/{nombre}/reporte.xlsx")
+async def reporte_trabajador_xlsx(nombre: str, _admin: str = Depends(requerir_admin)) -> Response:
+    nombre_decodificado = urllib.parse.unquote(nombre)
+    contenido = generar_reporte_trabajador_xlsx(nombre_decodificado)
+    nombre_archivo = "".join(c if c.isalnum() or c in " _-" else "_" for c in nombre_decodificado).strip() or "trabajador"
+    return Response(
+        content=contenido,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="reporte_{nombre_archivo}.xlsx"'},
     )
