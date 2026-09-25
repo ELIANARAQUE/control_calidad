@@ -1,5 +1,7 @@
-// Pagina "Gestos y Expresiones": alertas de movimiento brusco (postura) y expresión facial
-// negativa, con botones de veredicto.
+// Pagina "Gestos y Expresiones": alertas de expresión facial negativa y de ausencia (la
+// deteccion de "movimiento brusco"/postura se elimino por falsos positivos -moverse en la
+// silla, agacharse, bajar la cabeza-, pero las alertas viejas de ese tipo siguen apareciendo
+// aqui si existen en el historial), con botones de veredicto.
 
 const feedEl = document.getElementById("feed");
 const contadorAlertasEl = document.getElementById("contadorAlertas");
@@ -40,7 +42,7 @@ function renderizar() {
   for (const [id, datos] of Core.estaciones) {
     if (foco && id !== foco) continue;
     for (const evento of datos.eventos) {
-      if (evento.tipo === "alerta_postura" || evento.tipo === "alerta_expresion") {
+      if (evento.tipo === "alerta_postura" || evento.tipo === "alerta_expresion" || evento.tipo === "alerta_ausencia") {
         combinado.push({ ...evento, estacion_id: evento.estacion_id || id });
       }
     }

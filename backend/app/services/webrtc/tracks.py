@@ -8,7 +8,6 @@ import asyncio
 import logging
 import time
 import uuid
-from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -21,14 +20,7 @@ from app.core.state import bus_alertas, config_tiempo_real, gestor_estaciones, n
 from app.services.emocion.detector import EMOCIONES_NEGATIVAS, DetectorEmocion, recortar_cara
 from app.services.stt.lenguaje import contiene_lenguaje_inapropiado
 from app.services.stt.transcriber import Transcriptor
-from app.services.yolo.detector import (
-    NARIZ,
-    OJO_DER,
-    OJO_IZQ,
-    DetectorYOLO,
-    LimitadorFPS,
-    detectar_movimiento_por_ventana,
-)
+from app.services.yolo.detector import NARIZ, OJO_DER, OJO_IZQ, DetectorYOLO, LimitadorFPS
 
 logger = logging.getLogger(__name__)
 
@@ -106,16 +98,16 @@ async def consumir_video(track, estacion_id: str) -> None:
     limitador_snapshot = LimitadorFPS(10.0)  # el panel no necesita mas de ~10fps de miniatura
     loop = asyncio.get_event_loop()
 
-    # Ventana deslizante de los ultimos N frames (keypoints, confianzas) por estacion:
-    # detectar_movimiento_por_ventana promedia sus dos mitades en vez de comparar 2 frames
-    # crudos, lo que amortigua el ruido normal de la estimacion de pose.
-    historial: deque[tuple[np.ndarray, np.ndarray]] = deque(maxlen=settings.yolo_ventana_frames)
-    ultimo_ts_alerta = 0.0
-
-    # Debounce/cooldown independientes para la expresion facial (misma logica que postura,
-    # pero por separado: son heuristicas distintas con umbrales distintos).
+    # Debounce/cooldown para la expresion facial: exige varias detecciones seguidas antes de
+    # alertar, para no disparar por un solo frame ruidoso.
     racha_emocion = 0
     ultimo_ts_alerta_emocion = 0.0
+
+    # Deteccion de ausencia: si la camara deja de ver a alguien por mas de
+    # `ausencia_umbral_segundos` seguidos, se avisa una vez (no se repite hasta que la persona
+    # vuelva y se vuelva a ir, para no inundar el panel con la misma alerta cada pocos segundos).
+    ausente_desde: float | None = None
+    alerta_ausencia_enviada = False
 
     while True:
         try:
@@ -148,48 +140,45 @@ async def consumir_video(track, estacion_id: str) -> None:
 
         try:
             frame_bgr = frame_bgr_snapshot
+            ahora = time.monotonic()
 
             # La inferencia YOLO es bloqueante (CPU/GPU-bound) -> se corre en thread aparte
             resultado = await loop.run_in_executor(_executor, detector.procesar_frame, frame_bgr)
 
             if resultado["num_personas"] == 0:
-                historial.clear()
                 racha_emocion = 0
+
+                if ausente_desde is None:
+                    ausente_desde = ahora
+                elif not alerta_ausencia_enviada and (ahora - ausente_desde) >= settings.ausencia_umbral_segundos:
+                    alerta_ausencia_enviada = True
+                    captura_path = await loop.run_in_executor(
+                        _executor, _guardar_captura_bgr, estacion_id, "ausencia", frame_bgr
+                    )
+                    minutos = settings.ausencia_umbral_segundos / 60
+                    detalle = f"Sin actividad frente a la cámara desde hace más de {minutos:.0f} minuto(s)"
+                    alerta_id = registrar_alerta(estacion_id, detalle, tipo="ausencia", captura_path=captura_path)
+                    await bus_alertas.emitir(
+                        nuevo_evento(
+                            estacion_id,
+                            "alerta_ausencia",
+                            {
+                                "detalle": detalle,
+                                "alerta_id": alerta_id,
+                                "veredicto": None,
+                                "captura_url": f"/api/alertas/{alerta_id}/captura.jpg" if captura_path else None,
+                            },
+                        )
+                    )
                 continue
+
+            # Alguien volvio a aparecer: se reinicia el conteo de ausencia para poder avisar de
+            # nuevo si se vuelve a ir.
+            ausente_desde = None
+            alerta_ausencia_enviada = False
 
             kpts_persona = resultado["keypoints"][0]
             conf_persona = resultado["confianzas"][0]
-            historial.append((kpts_persona, conf_persona))
-
-            ahora = time.monotonic()
-            cooldown_cumplido = (ahora - ultimo_ts_alerta) >= settings.yolo_alerta_cooldown_segundos
-            if cooldown_cumplido and detectar_movimiento_por_ventana(list(historial)):
-                ultimo_ts_alerta = ahora
-                historial.clear()  # evita que la misma racha de movimiento dispare dos alertas seguidas
-
-                # Recorte de cara si se puede ubicar con confianza; si no, el cuadro completo
-                # (mejor una foto de cuerpo entero que ninguna foto).
-                recorte_postura = recortar_cara(
-                    frame_bgr, kpts_persona, conf_persona, settings.emocion_confianza_minima_keypoints
-                )
-                captura_path = await loop.run_in_executor(
-                    _executor, _guardar_captura_bgr, estacion_id, "postura",
-                    recorte_postura if recorte_postura is not None else frame_bgr,
-                )
-
-                alerta_id = registrar_alerta(estacion_id, "Movimiento brusco detectado", captura_path=captura_path)
-                await bus_alertas.emitir(
-                    nuevo_evento(
-                        estacion_id,
-                        "alerta_postura",
-                        {
-                            "detalle": "Movimiento brusco detectado",
-                            "alerta_id": alerta_id,
-                            "veredicto": None,
-                            "captura_url": f"/api/alertas/{alerta_id}/captura.jpg" if captura_path else None,
-                        },
-                    )
-                )
 
             if detector_emocion is not None:
                 recorte_cara = recortar_cara(
@@ -256,7 +245,6 @@ async def consumir_video(track, estacion_id: str) -> None:
             # debe tumbar la tarea completa: sin este try/except, una excepcion aqui mata
             # `consumir_video` para siempre y la estacion deja de generar alertas hasta reconectar.
             logger.exception("Error procesando frame de video de estacion %s", estacion_id)
-            historial.clear()
             racha_emocion = 0
 
 

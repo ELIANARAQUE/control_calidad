@@ -5,7 +5,7 @@
 // este archivo primero y despues su propio script con lo que le es especifico.
 
 const Core = (() => {
-  const TIPOS_CON_VEREDICTO = new Set(["alerta_postura", "alerta_lenguaje", "alerta_expresion"]);
+  const TIPOS_CON_VEREDICTO = new Set(["alerta_postura", "alerta_lenguaje", "alerta_expresion", "alerta_ausencia"]);
   const MAX_EVENTOS_POR_ESTACION = 60;
   const COLORES_AVATAR = ["#0f9d68", "#6d28d9", "#1d4ed8", "#b45309", "#0f766e", "#7c3aed", "#0891b2"];
   const CLAVE_TOKEN = "qamonitor.supervisor.token";
@@ -13,7 +13,7 @@ const Core = (() => {
 
   let tokenSesion = sessionStorage.getItem(CLAVE_TOKEN);
   const estaciones = new Map(); // estacion_id -> { empleado, sede, modulo, conectada, pendientes, eventos }
-  const contadores = { pendientes: 0, transcripciones: 0, porTipo: { alerta_postura: 0, alerta_lenguaje: 0, alerta_expresion: 0 } };
+  const contadores = { pendientes: 0, transcripciones: 0, porTipo: { alerta_postura: 0, alerta_lenguaje: 0, alerta_expresion: 0, alerta_ausencia: 0 } };
   const listenersEvento = [];
   const listenersListo = [];
 
@@ -197,6 +197,8 @@ const Core = (() => {
         return { icono: "gavel", texto: evento.detalle, etiqueta: "Lenguaje" };
       case "alerta_expresion":
         return { icono: "sentiment_dissatisfied", texto: evento.detalle, etiqueta: "Expresión" };
+      case "alerta_ausencia":
+        return { icono: "person_off", texto: evento.detalle, etiqueta: "Ausencia" };
       case "transcripcion":
         return { icono: "record_voice_over", texto: `"${evento.texto}"`, etiqueta: "Transcripción" };
       case "conexion":

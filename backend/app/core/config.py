@@ -21,11 +21,12 @@ class Settings(BaseSettings):
     yolo_imgsz: int = 480  # resolucion de inferencia reducida para ahorrar VRAM
     yolo_confidence: float = 0.5
 
-    # --- Heuristica de "movimiento brusco" ---
-    yolo_movimiento_confianza_minima: float = 0.5  # ignora keypoints poco confiables (jitter de pose)
-    yolo_movimiento_umbral_relativo: float = 0.6  # desplazamiento minimo, en "anchos de hombro", para contar como brusco
-    yolo_ventana_frames: int = 5  # cuantos frames recientes se mantienen en el buffer de contexto
-    yolo_alerta_cooldown_segundos: float = 8.0  # tiempo minimo entre alertas repetidas de la misma estacion
+    # --- Deteccion de ausencia ---
+    # Reemplaza la vieja heuristica de "movimiento brusco" (generaba demasiados falsos
+    # positivos: moverse en la silla, agacharse a buscar algo, bajar la cabeza a mirar el
+    # teclado, todo disparaba alerta). En su lugar, se avisa si la camara deja de ver a
+    # alguien durante mucho tiempo seguido (posible abandono del puesto).
+    ausencia_umbral_segundos: float = 300.0  # 5 minutos sin detectar a nadie frente a la camara
 
     # --- Expresion facial (HSEmotion, entrenado sobre AffectNet) ---
     emocion_habilitada: bool = True

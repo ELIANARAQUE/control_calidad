@@ -55,7 +55,7 @@ def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
     confirmadas = sum(1 for a in alertas if a["veredicto"] == "confirmada")
     falsas = sum(1 for a in alertas if a["veredicto"] == "falsa_alarma")
     sin_revisar = sum(1 for a in alertas if a["veredicto"] == "Sin revisar")
-    por_tipo = {"postura": 0, "lenguaje": 0, "expresion": 0}
+    por_tipo = {"postura": 0, "lenguaje": 0, "expresion": 0, "ausencia": 0}
     for a in alertas:
         for tipo in por_tipo:
             if tipo in a["categoria"]:
@@ -89,9 +89,10 @@ def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
         ("Total de sesiones", len(conexiones)),
         ("Frases transcritas", len(transcripciones)),
         ("Total de alertas generadas", len(alertas)),
-        ("  · Alertas de postura (movimiento brusco)", por_tipo["postura"]),
         ("  · Alertas de lenguaje inapropiado", por_tipo["lenguaje"]),
         ("  · Alertas de expresión facial negativa", por_tipo["expresion"]),
+        ("  · Alertas de ausencia frente a la cámara", por_tipo["ausencia"]),
+        ("  · Alertas de postura (heurística retirada, solo historial)", por_tipo["postura"]),
         ("Alertas confirmadas por el supervisor", confirmadas),
         ("Alertas descartadas (falsa alarma)", falsas),
         ("Alertas sin revisar todavía", sin_revisar),

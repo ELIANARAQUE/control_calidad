@@ -20,7 +20,7 @@ const contadorFiltroPendientes = document.getElementById("contadorFiltroPendient
 const contadorFiltroConectadas = document.getElementById("contadorFiltroConectadas");
 const contadorFiltroDesconectadas = document.getElementById("contadorFiltroDesconectadas");
 
-const TIPOS_CRITICOS = new Set(["alerta_lenguaje", "alerta_postura", "alerta_expresion"]);
+const TIPOS_CRITICOS = new Set(["alerta_lenguaje", "alerta_postura", "alerta_expresion", "alerta_ausencia"]);
 const MAX_EVENTOS_TIMELINE = 60;
 
 let filtroBusqueda = "";
@@ -51,7 +51,7 @@ function renderizarKPIs() {
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
   kpiLenguajeUltimo.textContent = ultimoLenguaje ? `Último evento: ${Core.hace(ultimoLenguaje.timestamp)}` : "Sin eventos aún";
 
-  kpiGestos.textContent = (contadores.porTipo.alerta_postura || 0) + (contadores.porTipo.alerta_expresion || 0);
+  kpiGestos.textContent = (contadores.porTipo.alerta_expresion || 0) + (contadores.porTipo.alerta_ausencia || 0);
   const sinIncidentes = activas.filter((e) => e.pendientes === 0 && e.eventos.every((ev) => !TIPOS_CRITICOS.has(ev.tipo) || ev.veredicto === "falsa_alarma")).length;
   kpiSinIncidentes.textContent = `${sinIncidentes} de ${activas.length} estaciones sin incidentes`;
 

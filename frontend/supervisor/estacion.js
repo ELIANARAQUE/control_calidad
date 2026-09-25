@@ -113,7 +113,7 @@ function renderizar() {
 
   statPendientes.textContent = eventos.filter((e) => !e.veredicto && e.alerta_id != null).length;
   statTranscripciones.textContent = eventos.filter((e) => e.tipo === "transcripcion").length;
-  statGestos.textContent = eventos.filter((e) => e.tipo === "alerta_postura" || e.tipo === "alerta_expresion").length;
+  statGestos.textContent = eventos.filter((e) => e.tipo === "alerta_postura" || e.tipo === "alerta_expresion" || e.tipo === "alerta_ausencia").length;
   statLenguaje.textContent = eventos.filter((e) => e.tipo === "alerta_lenguaje").length;
 
   feedEl.innerHTML = "";
