@@ -6,6 +6,11 @@
 
 const Core = (() => {
   const TIPOS_CON_VEREDICTO = new Set(["alerta_postura", "alerta_lenguaje", "alerta_expresion", "alerta_ausencia"]);
+  // La campana de notificaciones (badge + panel desplegable) solo debe avisar de lenguaje
+  // inapropiado/mal trato -las de expresion y ausencia se revisan desde sus propias paginas,
+  // pero llenar la campana con las 3 cosas mezcladas (mas de 180 con las viejas de postura)
+  // le quitaba utilidad como "lo mas urgente para revisar ya".
+  const TIPOS_NOTIFICABLES = new Set(["alerta_lenguaje"]);
   const MAX_EVENTOS_POR_ESTACION = 60;
   const COLORES_AVATAR = ["#0f9d68", "#6d28d9", "#1d4ed8", "#b45309", "#0f766e", "#7c3aed", "#0891b2"];
   const CLAVE_TOKEN = "qamonitor.supervisor.token";
@@ -321,12 +326,28 @@ const Core = (() => {
     });
   }
 
+  // Solo lenguaje/mal trato cuenta para la campana (ver TIPOS_NOTIFICABLES): las de expresion
+  // y ausencia se revisan desde sus propias paginas, no compiten por atencion inmediata.
+  function eventosPendientesNotificables() {
+    const combinado = [];
+    for (const [id, datos] of estaciones) {
+      for (const evento of datos.eventos) {
+        if (TIPOS_NOTIFICABLES.has(evento.tipo) && !evento.veredicto) {
+          combinado.push({ ...evento, estacion_id: evento.estacion_id || id });
+        }
+      }
+    }
+    combinado.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    return combinado;
+  }
+
   // --- Badge de campana (contador de pendientes en la topbar, presente en todas las paginas) ---
   function actualizarBadgeCampana() {
     const badgeCampana = document.getElementById("badgeCampana");
     if (!badgeCampana) return;
-    if (contadores.pendientes > 0) {
-      badgeCampana.textContent = contadores.pendientes;
+    const pendientesNotificables = eventosPendientesNotificables().length;
+    if (pendientesNotificables > 0) {
+      badgeCampana.textContent = pendientesNotificables;
       badgeCampana.classList.remove("hidden");
       badgeCampana.classList.add("flex");
     } else {
@@ -337,8 +358,8 @@ const Core = (() => {
   // --- Panel desplegable de la campana: la campana solo actualizaba el numero, pero nunca
   // abria nada al hacer click (no tenia ningun listener) -se agrega aqui, una sola vez, para
   // que funcione igual en todas las paginas que tienen la campana en su topbar. Muestra las
-  // alertas de TODAS las estaciones que aun no tienen veredicto, para poder revisarlas sin
-  // tener que ir pagina por pagina buscandolas.
+  // alertas de lenguaje/mal trato de TODAS las estaciones que aun no tienen veredicto, para
+  // poder revisarlas sin tener que ir pagina por pagina buscandolas.
   function iniciarCampanaNotificaciones() {
     const btnCampana = document.getElementById("btnCampana");
     if (!btnCampana || btnCampana.dataset.campanaLista) return;
@@ -357,18 +378,7 @@ const Core = (() => {
       "p-space-sm flex flex-col gap-space-xs";
     envoltorio.appendChild(panel);
 
-    function eventosPendientes() {
-      const combinado = [];
-      for (const [id, datos] of estaciones) {
-        for (const evento of datos.eventos) {
-          if (TIPOS_CON_VEREDICTO.has(evento.tipo) && !evento.veredicto) {
-            combinado.push({ ...evento, estacion_id: evento.estacion_id || id });
-          }
-        }
-      }
-      combinado.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      return combinado;
-    }
+    const eventosPendientes = eventosPendientesNotificables;
 
     function estaAbierto() {
       return !panel.classList.contains("oculto");
@@ -381,7 +391,7 @@ const Core = (() => {
       const titulo = document.createElement("div");
       titulo.className =
         "font-headline-sm text-headline-sm text-on-surface font-bold px-space-xs pb-space-xs border-b border-surface-container-low sticky top-0 bg-surface-container-lowest";
-      titulo.textContent = `Alertas pendientes (${pendientes.length})`;
+      titulo.textContent = `Lenguaje / mal trato pendientes (${pendientes.length})`;
       panel.appendChild(titulo);
 
       if (pendientes.length === 0) {

@@ -216,6 +216,20 @@ def listar_eventos_recientes(limite_por_tipo: int = 300) -> list[dict]:
     return eventos
 
 
+def eliminar_alertas_por_tipo(tipo: str) -> list[str]:
+    """Borra todas las alertas de un `tipo` dado (usado para limpiar las de 'postura' tras
+    retirar esa heuristica por falsos positivos). Devuelve las rutas de captura (relativas a
+    `RUTA_CAPTURAS`) que quedaron huerfanas, para que quien llama borre tambien esos archivos
+    del disco si quiere -esta funcion solo toca la base de datos-."""
+    with _conexion() as conn:
+        filas = conn.execute(
+            "SELECT captura_path FROM alertas WHERE tipo = ? AND captura_path IS NOT NULL", (tipo,)
+        ).fetchall()
+        rutas = [fila[0] for fila in filas]
+        conn.execute("DELETE FROM alertas WHERE tipo = ?", (tipo,))
+    return rutas
+
+
 def actualizar_veredicto(alerta_id: int, veredicto: str) -> bool:
     """veredicto: 'confirmada' (fue un movimiento real que valia la pena reportar) o
     'falsa_alarma' (ruido/gesto normal). Devuelve False si el id no existe."""
