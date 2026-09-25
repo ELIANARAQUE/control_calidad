@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Panel de Supervisor</title>
-<meta name="description" content="Centro de Monitoreo Biométrico y de Voz — Control de Calidad" />
+<title>Estación — Panel de Supervisor</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = {
@@ -127,10 +126,10 @@ tailwind.config = {
 <div class="pl-64">
   <header class="fixed top-0 left-64 right-0 h-16 bg-surface/90 backdrop-blur-xl z-40 shadow-sm px-space-lg flex items-center justify-between">
     <div class="flex items-center gap-space-md min-w-0">
-      <div class="flex items-center gap-space-xs bg-surface-container-low px-space-sm py-1 rounded-full shrink-0">
-        <span class="w-2 h-2 rounded-full bg-secondary"></span>
-        <span class="font-label-md text-label-md text-on-surface">Análisis de voz y gestos en línea</span>
-      </div>
+      <a href="index.html" class="flex items-center gap-space-xs text-on-surface-variant hover:text-on-surface transition-colors shrink-0">
+        <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+        <span class="font-label-md text-label-md">Centro de Monitoreo</span>
+      </a>
     </div>
     <div class="flex items-center gap-space-md shrink-0">
       <div class="hidden md:flex items-center gap-space-xs text-on-surface-variant">
@@ -148,146 +147,62 @@ tailwind.config = {
   </header>
 
   <main class="w-full pt-16 bg-surface min-h-screen">
-    <section class="p-space-lg bg-surface-container-low flex flex-col md:flex-row md:items-center justify-between gap-space-md shadow-sm">
-      <div class="flex flex-col gap-space-xs">
-        <div class="flex items-center gap-space-sm flex-wrap">
-          <span class="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Institución Universitaria de Colombia</span>
-          <span class="inline-block w-1.5 h-1.5 rounded-full bg-secondary-container"></span>
-          <span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Consola de Control de Calidad Académica</span>
-        </div>
-        <h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Centro de Monitoreo Biométrico &amp; Voz en Vivo</h1>
+    <section class="p-space-lg bg-surface-container-low shadow-sm" id="cabeceraEstacion">
+      <div class="flex items-center gap-space-sm flex-wrap">
+        <span class="font-label-sm text-label-sm text-secondary uppercase tracking-widest font-semibold">Centro de Control Unificado</span>
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-secondary-container"></span>
+        <span class="font-label-sm text-label-sm text-on-surface-variant font-medium" id="subtituloEstacion">Cargando estación…</span>
       </div>
-      <div class="flex items-center flex-wrap gap-space-sm">
-        <div class="flex items-center bg-surface-container-lowest rounded-lg px-space-sm py-space-xs shadow-sm">
-          <span class="material-symbols-outlined text-outline text-[18px] mr-space-xs">search</span>
-          <input class="bg-transparent font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none w-44" id="buscador" placeholder="Buscar empleado o estación…" type="text" />
+      <div class="flex items-center gap-space-sm mt-1">
+        <div class="w-11 h-11 rounded-full flex items-center justify-center font-bold text-white text-[15px]" id="avatarEstacion" style="background:#586174">?</div>
+        <div class="flex flex-col">
+          <h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight" id="nombreEstacion">—</h1>
+          <span class="font-body-sm text-body-sm text-on-surface-variant" id="detalleEstacion">—</span>
         </div>
-        <div class="flex items-center bg-surface-container rounded-lg p-1" id="filtrosVista">
-          <button class="filtro-vista px-space-sm py-space-xs rounded font-label-md text-label-md" data-filtro="todas" type="button">Todas</button>
-          <button class="filtro-vista px-space-sm py-space-xs rounded font-label-md text-label-md flex items-center gap-1" data-filtro="pendientes" type="button">
-            <span>Con alertas</span><span class="w-4 h-4 rounded-full bg-error text-on-error font-label-sm text-[9px] flex items-center justify-center font-bold" id="contadorFiltroPendientes">0</span>
-          </button>
-          <button class="filtro-vista px-space-sm py-space-xs rounded font-label-md text-label-md flex items-center gap-1" data-filtro="conectadas" type="button">
-            <span>Conectadas</span><span class="w-4 h-4 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-[9px] flex items-center justify-center font-bold" id="contadorFiltroConectadas">0</span>
-          </button>
-          <button class="filtro-vista px-space-sm py-space-xs rounded font-label-md text-label-md flex items-center gap-1" data-filtro="desconectadas" type="button">
-            <span>Desconectadas</span><span class="w-4 h-4 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-[9px] flex items-center justify-center font-bold" id="contadorFiltroDesconectadas">0</span>
-          </button>
-        </div>
+        <span class="ml-auto flex items-center gap-1 px-space-sm py-1 rounded-full bg-surface-container-lowest shadow-sm" id="estadoConexionEstacion">
+          <span class="w-2 h-2 rounded-full bg-outline"></span>
+          <span class="font-label-sm text-label-sm">Cargando…</span>
+        </span>
       </div>
     </section>
 
-    <section class="px-space-lg py-space-md" id="seccion-kpis">
-      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md">
-        <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between">
-          <div class="flex items-start justify-between">
-            <div class="flex flex-col">
-              <span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">Estaciones en Turno</span>
-              <div class="flex items-baseline gap-space-xs mt-space-xs">
-                <span class="font-headline-lg text-headline-lg text-on-surface font-bold" id="kpiConectadas">0</span>
-                <span class="font-label-lg text-label-lg text-on-surface-variant" id="kpiCapacidad">/0</span>
-              </div>
-            </div>
-            <div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
-              <span class="material-symbols-outlined text-[24px]">support_agent</span>
-            </div>
-          </div>
-          <div class="mt-space-md pt-space-xs flex items-center gap-space-xs">
-            <span class="relative flex h-2.5 w-2.5">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary-container opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary-container"></span>
-            </span>
-            <span class="font-label-sm text-label-sm font-semibold text-secondary" id="kpiTranscripciones">0 frases transcritas hoy</span>
+    <section class="p-space-lg grid grid-cols-1 xl:grid-cols-3 gap-space-lg items-start">
+      <div class="xl:col-span-1 flex flex-col gap-space-md">
+        <div class="tarjeta-estacion">
+          <div class="video-wrap" style="height:320px" id="videoWrapEstacion">
+            <div class="sin-senal"><span class="material-symbols-outlined text-[32px]">videocam_off</span><span>Sin conexión</span></div>
           </div>
         </div>
-
-        <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between">
-          <div class="flex items-start justify-between">
-            <div class="flex flex-col">
-              <span class="font-label-sm text-label-sm uppercase tracking-wider text-error font-semibold flex items-center gap-1">
-                <span class="material-symbols-outlined text-[14px]">warning</span> Infracciones de Lenguaje
-              </span>
-              <div class="flex items-baseline gap-space-xs mt-space-xs">
-                <span class="font-headline-lg text-headline-lg text-error font-bold" id="kpiLenguaje">0</span>
-              </div>
-            </div>
-            <div class="w-10 h-10 rounded-lg bg-error-container flex items-center justify-center text-error">
-              <span class="material-symbols-outlined text-[24px]">gavel</span>
-            </div>
+        <div class="grid grid-cols-2 gap-space-sm">
+          <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+            <span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">Pendientes</span>
+            <div class="font-headline-lg text-headline-lg text-on-surface font-bold mt-1" id="statPendientes">0</div>
           </div>
-          <div class="mt-space-md pt-space-xs flex items-center justify-between">
-            <span class="font-label-sm text-label-sm text-on-surface-variant" id="kpiLenguajeUltimo">Sin eventos aún</span>
+          <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+            <span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">Transcripciones</span>
+            <div class="font-headline-lg text-headline-lg text-on-surface font-bold mt-1" id="statTranscripciones">0</div>
           </div>
-        </div>
-
-        <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between">
-          <div class="flex items-start justify-between">
-            <div class="flex flex-col">
-              <span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">Alertas de Postura / Gestos</span>
-              <div class="flex items-baseline gap-space-xs mt-space-xs">
-                <span class="font-headline-lg text-headline-lg text-on-surface font-bold" id="kpiGestos">0</span>
-              </div>
-            </div>
-            <div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
-              <span class="material-symbols-outlined text-[24px]">sentiment_satisfied</span>
-            </div>
+          <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+            <span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">Gestos/Expresión</span>
+            <div class="font-headline-lg text-headline-lg text-on-surface font-bold mt-1" id="statGestos">0</div>
           </div>
-          <div class="mt-space-md pt-space-xs flex items-center justify-between">
-            <span class="font-label-sm text-label-sm text-on-surface-variant" id="kpiSinIncidentes">0 estaciones sin incidentes</span>
-          </div>
-        </div>
-
-        <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between">
-          <div class="flex items-start justify-between">
-            <div class="flex flex-col">
-              <span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">Alertas Pendientes</span>
-              <div class="flex items-baseline gap-space-xs mt-space-xs">
-                <span class="font-headline-lg text-headline-lg text-on-surface font-bold" id="kpiPendientes">0</span>
-                <span class="font-label-sm text-label-sm text-outline font-medium">sin revisar</span>
-              </div>
-            </div>
-            <div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
-              <span class="material-symbols-outlined text-[24px]">fact_check</span>
-            </div>
-          </div>
-          <div class="mt-space-md pt-space-xs flex items-center justify-between">
-            <a class="font-label-sm text-label-sm text-primary font-bold flex items-center hover:underline" href="historial.html">
-              <span>Ver reportes por trabajador</span><span class="material-symbols-outlined text-[14px] ml-0.5">arrow_forward</span>
-            </a>
+          <div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+            <span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">Lenguaje</span>
+            <div class="font-headline-lg text-headline-lg text-on-surface font-bold mt-1" id="statLenguaje">0</div>
           </div>
         </div>
       </div>
-    </section>
 
-    <section class="px-space-lg py-space-sm" id="seccion-monitoreo">
-      <div class="flex items-center justify-between mb-space-md flex-wrap gap-space-sm">
-        <div class="flex items-center gap-space-sm">
-          <span class="material-symbols-outlined text-secondary text-[22px]">videocam</span>
-          <h2 class="font-headline-md text-headline-md text-on-surface font-bold">Terminales en Transmisión</h2>
-          <span class="px-space-xs py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface-variant font-semibold" id="contadorTerminales">0 puestos</span>
-        </div>
-      </div>
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-space-lg" id="gridEstaciones"></div>
-      <p class="oculto text-center text-on-surface-variant py-space-xl" id="vacio">Todavía no se ha conectado ninguna estación.</p>
-    </section>
-
-    <section class="p-space-lg" id="seccion-timeline">
-      <div class="bg-surface-container-lowest rounded-xl shadow-md p-space-md flex flex-col">
+      <div class="xl:col-span-2 bg-surface-container-lowest rounded-xl shadow-md p-space-md flex flex-col">
         <div class="flex items-center justify-between pb-space-sm flex-wrap gap-space-sm">
           <div class="flex items-center gap-space-sm">
             <div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
-              <span class="material-symbols-outlined text-[20px]">history_edu</span>
+              <span class="material-symbols-outlined text-[20px]">timeline</span>
             </div>
             <div>
-              <h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Registro de Transcripciones &amp; Eventos</h3>
-              <p class="font-body-sm text-body-sm text-on-surface-variant">Flujo cronológico de toda la actividad detectada</p>
+              <h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Actividad de esta estación</h3>
+              <p class="font-body-sm text-body-sm text-on-surface-variant">Video, alertas de postura/expresión, lenguaje y transcripciones — todo en un solo lugar</p>
             </div>
-          </div>
-          <div class="flex items-center gap-space-xs" id="filtrosTimeline">
-            <button class="filtro-timeline px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold" data-tipo="todos" type="button">Todos</button>
-            <button class="filtro-timeline px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold" data-tipo="alerta_lenguaje" type="button">Lenguaje</button>
-            <button class="filtro-timeline px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold" data-tipo="alerta_postura" type="button">Postura</button>
-            <button class="filtro-timeline px-space-sm py-1 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold" data-tipo="alerta_expresion" type="button">Expresión</button>
           </div>
         </div>
         <div class="flex flex-col gap-space-xs mt-space-sm" id="feed"></div>
@@ -311,6 +226,6 @@ tailwind.config = {
 <div class="oculto fixed bottom-4 right-4 z-[100] bg-on-surface text-white px-space-md py-space-sm rounded-lg shadow-lg font-body-sm text-body-sm" id="toast"></div>
 
 <script src="core.js?v=1"></script>
-<script src="client.js?v=8"></script>
+<script src="estacion.js?v=1"></script>
 </body>
 </html>

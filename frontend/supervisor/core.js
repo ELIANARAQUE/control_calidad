@@ -46,6 +46,11 @@ const Core = (() => {
 
   function procesarEvento(evento) {
     const estacion = obtenerEstacion(evento.estacion_id);
+    // Los eventos que vienen del historial (`cargarEventosRecientes`) traen el nombre del
+    // empleado en el propio evento (la estacion puede ya no estar conectada, o haberse
+    // desconectado antes de que esta pagina cargara la lista de "activas"): sin esto se veia
+    // el UUID crudo de la estacion en vez del nombre en Gestos/Lenguaje/Transcripciones.
+    if (evento.empleado && !estacion.empleado) estacion.empleado = evento.empleado;
     switch (evento.tipo) {
       case "conexion":
         estacion.empleado = evento.empleado;

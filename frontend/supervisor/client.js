@@ -17,12 +17,14 @@ const kpiGestos = document.getElementById("kpiGestos");
 const kpiSinIncidentes = document.getElementById("kpiSinIncidentes");
 const kpiPendientes = document.getElementById("kpiPendientes");
 const contadorFiltroPendientes = document.getElementById("contadorFiltroPendientes");
+const contadorFiltroConectadas = document.getElementById("contadorFiltroConectadas");
+const contadorFiltroDesconectadas = document.getElementById("contadorFiltroDesconectadas");
 
 const TIPOS_CRITICOS = new Set(["alerta_lenguaje", "alerta_postura", "alerta_expresion"]);
 const MAX_EVENTOS_TIMELINE = 60;
 
 let filtroBusqueda = "";
-let filtroVista = "todas"; // todas | pendientes | conectadas
+let filtroVista = "todas"; // todas | pendientes | conectadas | desconectadas
 let filtroTimeline = "todos";
 let capacidadMaxima = null;
 
@@ -52,6 +54,8 @@ function renderizarKPIs() {
 
   kpiPendientes.textContent = contadores.pendientes;
   contadorFiltroPendientes.textContent = contadores.pendientes;
+  contadorFiltroConectadas.textContent = activas.length;
+  contadorFiltroDesconectadas.textContent = estaciones.size - activas.length;
 
   vacioEl.classList.toggle("oculto", estaciones.size > 0);
   contadorTerminalesEl.textContent = `${activas.length} puesto${activas.length === 1 ? "" : "s"}`;
@@ -66,6 +70,7 @@ function estacionesFiltradas() {
       }
       if (filtroVista === "pendientes") return datos.pendientes > 0;
       if (filtroVista === "conectadas") return datos.conectada;
+      if (filtroVista === "desconectadas") return !datos.conectada;
       return true;
     })
     .sort(([, a], [, b]) => {
@@ -130,13 +135,14 @@ function renderizarGrid() {
 }
 
 // Delegado en el contenedor (las tarjetas se regeneran en cada renderizarGrid): al presionar
-// "Monitorear solo esta" se guarda el foco y se salta directo a Transcripciones, que es donde
-// mas se nota el ruido de varias camaras hablando a la vez.
+// "Monitorear solo esta" se guarda el foco (para que Transcripciones/Lenguaje/Gestos tambien
+// puedan filtrar por esta estacion si se navega ahi despues) y se salta al centro de control
+// unificado de esa estacion: video, alertas, expresion y transcripciones en un solo lugar.
 gridEstacionesEl.addEventListener("click", (ev) => {
   const boton = ev.target.closest("[data-enfocar]");
   if (!boton) return;
   Core.establecerFoco(boton.dataset.enfocar);
-  window.location.href = "transcripciones.html";
+  window.location.href = `estacion.html?id=${encodeURIComponent(boton.dataset.enfocar)}`;
 });
 
 // Refresca las miniaturas de video cada 150ms (~6-7fps visibles): el backend ahora genera el

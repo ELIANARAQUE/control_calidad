@@ -154,12 +154,21 @@ def listar_eventos_recientes(limite_por_tipo: int = 300) -> list[dict]:
             "SELECT estacion_id, texto, timestamp FROM transcripciones ORDER BY timestamp DESC LIMIT ?",
             (limite_por_tipo,),
         ).fetchall()
+        # Nombre de empleado mas reciente por estacion: sin esto, una estacion que ya se
+        # desconecto (o cuyo evento de conexion salio del panel en vivo antes de navegar a
+        # otra pagina) mostraba el UUID crudo de la estacion en vez del nombre de la persona.
+        filas_nombres = conn.execute(
+            "SELECT estacion_id, empleado_nombre FROM eventos_conexion WHERE tipo = 'conexion' "
+            "GROUP BY estacion_id HAVING MAX(timestamp)"
+        ).fetchall()
+        nombres_por_estacion = {fila["estacion_id"]: fila["empleado_nombre"] for fila in filas_nombres}
 
     eventos = []
     for fila in filas_alertas:
         eventos.append(
             {
                 "estacion_id": fila["estacion_id"],
+                "empleado": nombres_por_estacion.get(fila["estacion_id"]),
                 "tipo": f"alerta_{fila['tipo']}",
                 "timestamp": fila["timestamp"],
                 "detalle": fila["detalle"],
@@ -172,6 +181,7 @@ def listar_eventos_recientes(limite_por_tipo: int = 300) -> list[dict]:
         eventos.append(
             {
                 "estacion_id": fila["estacion_id"],
+                "empleado": nombres_por_estacion.get(fila["estacion_id"]),
                 "tipo": "transcripcion",
                 "timestamp": fila["timestamp"],
                 "texto": fila["texto"],
