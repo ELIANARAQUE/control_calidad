@@ -72,6 +72,23 @@ class Transcriptor:
             device=settings.whisper_device,
             compute_type=settings.whisper_compute_type,
         )
+        # `WhisperModel(...)` no falla aunque CUDA no funcione de verdad (torch puede reportar
+        # GPU disponible via nvidia-smi sin que el proceso de Python tenga las librerias CUDA
+        # que CTranslate2 necesita, ej. "cublas64_12.dll is not found"): el error solo aparece
+        # en el primer `.transcribe()`. Por eso el fallback a CPU vive en `transcribir_chunk`,
+        # no aqui.
+        self._forzado_a_cpu = False
+
+    def _recargar_en_cpu(self) -> None:
+        logger.warning(
+            "Whisper con device=%s fallo al transcribir (ver traceback arriba, tipicamente "
+            "falta una libreria CUDA como cublas/cuDNN aunque haya GPU en la maquina). "
+            "Recargando el modelo en CPU para que el sistema siga funcionando -sera mas lento, "
+            "pero deja de romperse en cada chunk-.",
+            settings.whisper_device,
+        )
+        self.modelo = WhisperModel(settings.whisper_model_size, device="cpu", compute_type="int8")
+        self._forzado_a_cpu = True
 
     def transcribir_chunk(self, audio_f32_mono_16k: np.ndarray) -> str:
         """Recibe audio mono float32 a 16kHz y devuelve el texto transcrito.
@@ -90,14 +107,29 @@ class Transcriptor:
         if energia < settings.audio_energia_minima:
             return ""
 
-        segmentos, _info = self.modelo.transcribe(
-            audio_f32_mono_16k,
-            language="es",
-            vad_filter=True,
-            vad_parameters={"threshold": 0.5, "min_silence_duration_ms": 300},
-            beam_size=1,  # beam pequeno para priorizar latencia sobre precision
-            condition_on_previous_text=False,  # evita que una alucinacion se "contagie" al siguiente chunk
-        )
+        try:
+            segmentos, _info = self.modelo.transcribe(
+                audio_f32_mono_16k,
+                language="es",
+                vad_filter=True,
+                vad_parameters={"threshold": 0.5, "min_silence_duration_ms": 300},
+                beam_size=1,  # beam pequeno para priorizar latencia sobre precision
+                condition_on_previous_text=False,  # evita que una alucinacion se "contagie" al siguiente chunk
+            )
+            segmentos = list(segmentos)  # fuerza la evaluacion aqui, dentro del try
+        except RuntimeError:
+            if self._forzado_a_cpu:
+                raise  # ya estamos en CPU: esto es un error real, no lo escondas
+            logger.exception("Fallo transcribiendo con device=%s", settings.whisper_device)
+            self._recargar_en_cpu()
+            segmentos, _info = self.modelo.transcribe(
+                audio_f32_mono_16k,
+                language="es",
+                vad_filter=True,
+                vad_parameters={"threshold": 0.5, "min_silence_duration_ms": 300},
+                beam_size=1,
+                condition_on_previous_text=False,
+            )
 
         partes_confiables = [
             seg.text.strip()
