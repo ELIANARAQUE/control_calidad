@@ -333,6 +333,88 @@ const Core = (() => {
       badgeCampana.classList.add("hidden");
     }
   }
+
+  // --- Panel desplegable de la campana: la campana solo actualizaba el numero, pero nunca
+  // abria nada al hacer click (no tenia ningun listener) -se agrega aqui, una sola vez, para
+  // que funcione igual en todas las paginas que tienen la campana en su topbar. Muestra las
+  // alertas de TODAS las estaciones que aun no tienen veredicto, para poder revisarlas sin
+  // tener que ir pagina por pagina buscandolas.
+  function iniciarCampanaNotificaciones() {
+    const btnCampana = document.getElementById("btnCampana");
+    if (!btnCampana || btnCampana.dataset.campanaLista) return;
+    btnCampana.dataset.campanaLista = "1";
+
+    const envoltorio = document.createElement("div");
+    envoltorio.className = "relative";
+    btnCampana.parentNode.insertBefore(envoltorio, btnCampana);
+    envoltorio.appendChild(btnCampana);
+
+    const panel = document.createElement("div");
+    panel.id = "panelCampana";
+    panel.className =
+      "oculto absolute right-0 top-full mt-2 w-96 max-w-[90vw] max-h-[70vh] overflow-y-auto " +
+      "bg-surface-container-lowest rounded-xl shadow-xl border border-surface-container-high z-50 " +
+      "p-space-sm flex flex-col gap-space-xs";
+    envoltorio.appendChild(panel);
+
+    function eventosPendientes() {
+      const combinado = [];
+      for (const [id, datos] of estaciones) {
+        for (const evento of datos.eventos) {
+          if (TIPOS_CON_VEREDICTO.has(evento.tipo) && !evento.veredicto) {
+            combinado.push({ ...evento, estacion_id: evento.estacion_id || id });
+          }
+        }
+      }
+      combinado.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      return combinado;
+    }
+
+    function estaAbierto() {
+      return !panel.classList.contains("oculto");
+    }
+
+    function renderizarPanel() {
+      const pendientes = eventosPendientes();
+      panel.innerHTML = "";
+
+      const titulo = document.createElement("div");
+      titulo.className =
+        "font-headline-sm text-headline-sm text-on-surface font-bold px-space-xs pb-space-xs border-b border-surface-container-low sticky top-0 bg-surface-container-lowest";
+      titulo.textContent = `Alertas pendientes (${pendientes.length})`;
+      panel.appendChild(titulo);
+
+      if (pendientes.length === 0) {
+        const vacio = document.createElement("p");
+        vacio.className = "vacio-feed";
+        vacio.textContent = "No hay alertas pendientes por revisar.";
+        panel.appendChild(vacio);
+        return;
+      }
+      for (const evento of pendientes.slice(0, 50)) {
+        panel.appendChild(crearElementoEvento(evento, true, renderizarPanel));
+      }
+    }
+
+    btnCampana.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (estaAbierto()) {
+        panel.classList.add("oculto");
+      } else {
+        renderizarPanel();
+        panel.classList.remove("oculto");
+      }
+    });
+    document.addEventListener("click", (ev) => {
+      if (estaAbierto() && !envoltorio.contains(ev.target)) panel.classList.add("oculto");
+    });
+    listenersEvento.push(() => {
+      if (estaAbierto()) renderizarPanel();
+    });
+    listenersListo.push(() => {
+      if (estaAbierto()) renderizarPanel();
+    });
+  }
   listenersEvento.push(actualizarBadgeCampana);
   listenersListo.push(actualizarBadgeCampana);
 
@@ -361,6 +443,7 @@ const Core = (() => {
       marcarNavActiva();
       iniciarReloj();
       iniciarAvisoGlobal();
+      iniciarCampanaNotificaciones();
       conectarWebSocket();
       // Estaciones activas primero (llena nombre/sede/modulo), despues eventos (asi el feed
       // ya puede mostrar el nombre del empleado en vez del id crudo de la estacion).
