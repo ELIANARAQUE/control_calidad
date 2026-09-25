@@ -4,6 +4,7 @@ archivo disperso- por un documento individual, pensado para revisarse en una eva
 """
 import io
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as ImagenExcel
@@ -20,6 +21,18 @@ _VERDE = "10B981"
 _ROJO = "DC2626"
 _GRIS_CLARO = "EEF1F8"
 
+# Los timestamps se guardan en UTC (con "+00:00" al final); mostrarlos tal cual (sin convertir)
+# hacia que el reporte se viera "corrido" 5 horas respecto a lo que de verdad paso en Colombia
+# -al punto de que un evento de las 7pm local aparecia fechado al dia siguiente en el reporte-.
+_ZONA_COLOMBIA = ZoneInfo("America/Bogota")
+
+
+def _a_hora_colombia(iso: str) -> datetime:
+    dt = datetime.fromisoformat(iso)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_ZONA_COLOMBIA)
+
 
 def _fila_encabezado(ws, fila: int, encabezados: list[str], color_fondo: str = _AZUL_INSTITUCIONAL) -> None:
     for col, texto in enumerate(encabezados, start=1):
@@ -33,7 +46,7 @@ def _fecha_legible(iso: str | None) -> str:
     if not iso:
         return "—"
     try:
-        dt = datetime.fromisoformat(iso)
+        dt = _a_hora_colombia(iso)
     except ValueError:
         return iso
     return dt.strftime("%d/%m/%Y %H:%M")
@@ -139,7 +152,7 @@ def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
 
     for i, evento in enumerate(eventos, start=2):
         try:
-            dt = datetime.fromisoformat(evento["timestamp"])
+            dt = _a_hora_colombia(evento["timestamp"])
             fecha_txt, hora_txt = dt.strftime("%d/%m/%Y"), dt.strftime("%H:%M:%S")
         except (ValueError, TypeError):
             fecha_txt, hora_txt = evento["timestamp"], ""
@@ -188,6 +201,40 @@ def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
 
     if not eventos:
         ws2.cell(row=2, column=1, value="Sin eventos registrados para este trabajador todavía.")
+
+    # ---------------- Hoja "Transcripciones" ----------------
+    # Solo lo que la persona hablo, en orden, sin mezclarlo con alertas -para poder leer de
+    # corrido "todo lo que dijo" durante sus sesiones, que es lo que se pidio: una vista
+    # dedicada solo a la voz transcrita, organizada.
+    ws3 = wb.create_sheet("Transcripciones")
+    ws3.sheet_view.showGridLines = False
+    _fila_encabezado(ws3, 1, ["Fecha", "Hora", "Transcripción"], color_fondo=_VERDE)
+    ws3.freeze_panes = "A2"
+
+    transcripciones = [e for e in eventos if e["categoria"] == "Transcripción"]
+    fila_actual = 2
+    for evento in transcripciones:
+        try:
+            dt = _a_hora_colombia(evento["timestamp"])
+            fecha_txt, hora_txt = dt.strftime("%d/%m/%Y"), dt.strftime("%H:%M:%S")
+        except (ValueError, TypeError):
+            fecha_txt, hora_txt = evento["timestamp"], ""
+
+        ws3.cell(row=fila_actual, column=1, value=fecha_txt)
+        ws3.cell(row=fila_actual, column=2, value=hora_txt)
+        celda_texto = ws3.cell(row=fila_actual, column=3, value=evento["detalle"])
+        celda_texto.alignment = Alignment(wrap_text=True, vertical="top")
+        if fila_actual % 2 == 0:
+            for col in (1, 2, 3):
+                ws3.cell(row=fila_actual, column=col).fill = PatternFill("solid", fgColor=_GRIS_CLARO)
+        fila_actual += 1
+
+    if not transcripciones:
+        ws3.cell(row=2, column=1, value="Sin transcripciones de voz registradas para este trabajador todavía.")
+
+    ws3.column_dimensions["A"].width = 12
+    ws3.column_dimensions["B"].width = 10
+    ws3.column_dimensions["C"].width = 90
 
     buffer = io.BytesIO()
     wb.save(buffer)
