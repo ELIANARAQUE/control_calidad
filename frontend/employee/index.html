@@ -84,14 +84,17 @@ tailwind.config = {
           <span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Paso 1 // Datos de la sesión</span>
         </div>
         <h1 class="font-headline-md text-headline-md text-on-surface">Ingreso a la Estación de Trabajo</h1>
-        <p class="font-body-sm text-body-sm text-on-surface-variant">Registra tu nombre y tu puesto para habilitar la telemetría de calidad de servicio.</p>
+        <p class="font-body-sm text-body-sm text-on-surface-variant">Confirma tu puesto para habilitar la telemetría de calidad de servicio.</p>
 
-        <div class="flex flex-col gap-space-xs">
-          <label class="font-label-md text-label-md text-on-surface font-semibold" for="nombreEmpleado">Nombre completo</label>
-          <div class="relative flex items-center">
-            <span class="material-symbols-outlined text-[20px] text-on-surface-variant absolute left-space-md pointer-events-none">person</span>
-            <input class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md pl-11 pr-space-md py-space-sm rounded-lg focus:outline-none focus:bg-white focus:shadow-md transition-all placeholder:text-outline" id="nombreEmpleado" placeholder="Ej. Laura Gómez" type="text" autocomplete="off" />
+        <div class="flex items-center justify-between gap-space-sm bg-surface-container-low rounded-lg px-space-md py-space-sm">
+          <div class="flex items-center gap-space-sm min-w-0">
+            <span class="material-symbols-outlined text-[20px] text-on-surface-variant shrink-0">verified_user</span>
+            <div class="flex flex-col min-w-0">
+              <span class="font-label-sm text-label-sm text-on-surface-variant">Sesión iniciada como</span>
+              <span class="font-body-md text-body-md text-on-surface font-semibold truncate" id="nombreEmpleado">—</span>
+            </div>
           </div>
+          <a class="font-label-sm text-label-sm text-primary font-semibold shrink-0" href="#" id="btnCerrarSesionEmpleado">Cerrar sesión</a>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md">

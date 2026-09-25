@@ -8,6 +8,7 @@ from aiortc import RTCConfiguration, RTCIceServer, RTCPeerConnection, RTCSession
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.core.auth import info_de_token
 from app.core.db import registrar_evento_conexion
 from app.core.state import EstacionInfo, bus_alertas, gestor_estaciones, nuevo_evento
 from app.services.webrtc.tracks import consumir_audio, consumir_video
@@ -45,7 +46,7 @@ def _log_seccion_sdp(estacion_id: str, etiqueta: str, sdp: str, kind: str) -> No
 class OfertaWebRTC(BaseModel):
     sdp: str
     type: str
-    empleado_nombre: str
+    token: str  # sesion de la cuenta autenticada (ver /auth/verificar-rostro): de ahi sale el nombre real
     estacion_id: str | None = None
     sede: str | None = None
     modulo: str | None = None
@@ -61,17 +62,25 @@ class RespuestaWebRTC(BaseModel):
 @router.post("/offer", response_model=RespuestaWebRTC)
 async def recibir_oferta(oferta: OfertaWebRTC) -> RespuestaWebRTC:
     """Cada estacion de empleado llama a este endpoint una vez al iniciar su sesion."""
+    sesion = info_de_token(oferta.token)
+    if sesion is None:
+        raise HTTPException(status_code=401, detail="Sesión inválida o expirada, vuelve a iniciar sesión")
+
     if not oferta.acepto_habeas_data:
         raise HTTPException(
             status_code=400,
             detail="Debe aceptar el aviso de tratamiento de datos (Ley 1581 de 2012) antes de iniciar el monitoreo",
         )
 
+    # El nombre viene de la cuenta autenticada (login + verificacion facial), no de un campo de
+    # texto libre que el navegador podia mandar antes -asi tampoco alguien puede escribir el
+    # nombre de otra persona y hacerse pasar por ella en el monitoreo.
+    empleado_nombre = sesion["nombre"]
     estacion_id = oferta.estacion_id or str(uuid.uuid4())
 
     info = EstacionInfo(
         estacion_id=estacion_id,
-        empleado_nombre=oferta.empleado_nombre,
+        empleado_nombre=empleado_nombre,
         sede=oferta.sede,
         modulo=oferta.modulo,
     )
@@ -92,8 +101,8 @@ async def recibir_oferta(oferta: OfertaWebRTC) -> RespuestaWebRTC:
             desconexion_ya_registrada = True  # el estado puede pasar por varios de estos seguidos
             await gestor_estaciones.liberar(estacion_id)
             _peer_connections.discard(pc)
-            registrar_evento_conexion(estacion_id, oferta.empleado_nombre, "desconexion")
-            await bus_alertas.emitir(nuevo_evento(estacion_id, "desconexion", {"empleado": oferta.empleado_nombre}))
+            await registrar_evento_conexion(estacion_id, empleado_nombre, "desconexion")
+            await bus_alertas.emitir(nuevo_evento(estacion_id, "desconexion", {"empleado": empleado_nombre}))
 
     @pc.on("track")
     def _on_track(track) -> None:
@@ -118,9 +127,9 @@ async def recibir_oferta(oferta: OfertaWebRTC) -> RespuestaWebRTC:
 
     _log_seccion_sdp(estacion_id, "ANSWER (servidor)", pc.localDescription.sdp, "audio")
 
-    registrar_evento_conexion(
+    await registrar_evento_conexion(
         estacion_id,
-        oferta.empleado_nombre,
+        empleado_nombre,
         "conexion",
         sede=oferta.sede,
         modulo=oferta.modulo,
@@ -130,7 +139,7 @@ async def recibir_oferta(oferta: OfertaWebRTC) -> RespuestaWebRTC:
         nuevo_evento(
             estacion_id,
             "conexion",
-            {"empleado": oferta.empleado_nombre, "sede": oferta.sede, "modulo": oferta.modulo},
+            {"empleado": empleado_nombre, "sede": oferta.sede, "modulo": oferta.modulo},
         )
     )
 

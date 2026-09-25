@@ -50,32 +50,6 @@ tailwind.config = {
 </head>
 <body class="bg-surface font-body-md text-body-md text-on-surface antialiased" data-pagina="gestos">
 
-<div class="fixed inset-0 z-[200] bg-primary-container flex items-center justify-center p-space-md" id="pantallaLogin">
-  <form class="bg-surface-container-lowest rounded-xl shadow-xl p-space-xl w-full max-w-sm flex flex-col gap-space-md" id="formLogin">
-    <div class="flex items-center gap-space-sm">
-      <div class="w-10 h-10 rounded-lg bg-secondary-container flex items-center justify-center shrink-0">
-        <span class="material-symbols-outlined text-primary-container text-[22px]">shield</span>
-      </div>
-      <div class="flex flex-col">
-        <span class="font-headline-sm text-headline-sm text-on-surface">Panel de Supervisor</span>
-        <span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Acceso restringido</span>
-      </div>
-    </div>
-    <div class="flex flex-col gap-space-xs">
-      <label class="font-label-md text-label-md text-on-surface font-semibold" for="loginUsuario">Usuario</label>
-      <input class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md px-space-md py-space-sm rounded-lg focus:outline-none" id="loginUsuario" autocomplete="username" type="text" />
-    </div>
-    <div class="flex flex-col gap-space-xs">
-      <label class="font-label-md text-label-md text-on-surface font-semibold" for="loginClave">Clave</label>
-      <input class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md px-space-md py-space-sm rounded-lg focus:outline-none" id="loginClave" autocomplete="current-password" type="password" />
-    </div>
-    <p class="oculto font-body-sm text-body-sm text-error" id="loginError"></p>
-    <button class="w-full bg-primary text-white font-label-lg text-label-lg py-space-sm rounded-lg flex items-center justify-center gap-space-xs" type="submit">
-      <span class="material-symbols-outlined text-[18px]">login</span><span>Ingresar</span>
-    </button>
-  </form>
-</div>
-
 <div class="oculto" id="appContenido">
 <aside class="fixed left-0 top-0 h-full w-64 bg-primary-container z-50 flex flex-col justify-between shadow-lg">
   <div class="flex flex-col min-h-0">

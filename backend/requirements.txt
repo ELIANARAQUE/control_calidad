@@ -28,7 +28,20 @@ faster-whisper==1.0.3
 nvidia-cublas-cu12
 nvidia-cudnn-cu12
 
-# hsemotion-onnx arrastra una version de numpy 2.x que rompe a ultralytics
+# Base de datos y cuentas (Supabase reemplaza el SQLite local; ver supabase_schema.sql)
+supabase==2.31.0
+bcrypt==5.0.0
+cryptography==50.0.1
+
+# Reconocimiento facial para el login (verificacion de identidad, no solo deteccion de
+# landmarks): arrastra tensorflow, que exige numpy>=2.0 -por eso numpy queda pineado a 1.26.4
+# mas abajo, al final, para que gane esa version igual (deepface/tensorflow funcionan bien con
+# 1.26.4 en la practica pese al warning de pip).
+deepface==0.0.101
+tensorflow==2.21.0
+tf-keras==2.21.0  # debe coincidir con la version de tensorflow de arriba
+
+# hsemotion-onnx y tensorflow arrastran una version de numpy 2.x que rompe a ultralytics
 # (requiere <2.0.0): se fija despues, en la ultima linea, para que gane esta.
 numpy==1.26.4
 

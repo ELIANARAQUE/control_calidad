@@ -13,7 +13,11 @@ const Core = (() => {
   const TIPOS_NOTIFICABLES = new Set(["alerta_lenguaje"]);
   const MAX_EVENTOS_POR_ESTACION = 60;
   const COLORES_AVATAR = ["#0f9d68", "#6d28d9", "#1d4ed8", "#b45309", "#0f766e", "#7c3aed", "#0891b2"];
-  const CLAVE_TOKEN = "qamonitor.supervisor.token";
+  // Mismas claves que usa /login/ (login unificado admin/empleado con verificacion facial):
+  // el panel ya no tiene su propio formulario de usuario/clave, se autentica ahi y llega aca
+  // con la sesion ya en sessionStorage.
+  const CLAVE_TOKEN = "qamonitor.token";
+  const CLAVE_ROL = "qamonitor.rol";
   const CLAVE_FOCO = "qamonitor.supervisor.estacionFoco";
 
   let tokenSesion = sessionStorage.getItem(CLAVE_TOKEN);
@@ -431,8 +435,9 @@ const Core = (() => {
   // --- Sesión: login / logout (presente en todas las paginas) ---
   function cerrarSesionLocal() {
     sessionStorage.removeItem(CLAVE_TOKEN);
+    sessionStorage.removeItem(CLAVE_ROL);
     tokenSesion = null;
-    location.reload();
+    window.location.href = "/login/";
   }
 
   function marcarNavActiva() {
@@ -441,14 +446,13 @@ const Core = (() => {
     document.querySelectorAll(`.nav-link[data-pagina="${pagina}"]`).forEach((el) => el.classList.add("activa"));
   }
 
+  // El panel ya no tiene su propio formulario de usuario/clave: el login (credenciales +
+  // verificacion facial) vive en /login/, compartido con la estacion de empleado. Aqui solo
+  // se exige que ya exista una sesion valida CON ROL ADMIN -sin eso, se manda para alla-.
   function iniciar(alListo) {
-    const pantallaLogin = document.getElementById("pantallaLogin");
     const appContenido = document.getElementById("appContenido");
-    const formLogin = document.getElementById("formLogin");
-    const loginError = document.getElementById("loginError");
 
     async function iniciarPagina() {
-      pantallaLogin?.classList.add("oculto");
       appContenido?.classList.remove("oculto");
       marcarNavActiva();
       iniciarReloj();
@@ -463,31 +467,6 @@ const Core = (() => {
       if (alListo) alListo();
     }
 
-    formLogin?.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      loginError.classList.add("oculto");
-      const usuario = document.getElementById("loginUsuario").value.trim();
-      const clave = document.getElementById("loginClave").value;
-      try {
-        const resp = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ usuario, clave }),
-        });
-        if (!resp.ok) {
-          const detalle = await resp.json().catch(() => ({}));
-          throw new Error(detalle.detail || "No se pudo iniciar sesión");
-        }
-        const datos = await resp.json();
-        tokenSesion = datos.token;
-        sessionStorage.setItem(CLAVE_TOKEN, tokenSesion);
-        iniciarPagina();
-      } catch (err) {
-        loginError.textContent = err.message;
-        loginError.classList.remove("oculto");
-      }
-    });
-
     document.getElementById("btnCerrarSesion")?.addEventListener("click", async () => {
       try {
         await apiFetch("/api/auth/logout", { method: "POST" });
@@ -497,7 +476,12 @@ const Core = (() => {
       cerrarSesionLocal();
     });
 
-    if (tokenSesion) iniciarPagina();
+    const rol = sessionStorage.getItem(CLAVE_ROL);
+    if (tokenSesion && rol === "admin") {
+      iniciarPagina();
+    } else {
+      window.location.href = "/login/";
+    }
   }
 
   return {

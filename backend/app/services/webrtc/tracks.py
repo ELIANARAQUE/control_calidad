@@ -157,7 +157,7 @@ async def consumir_video(track, estacion_id: str) -> None:
                     )
                     minutos = settings.ausencia_umbral_segundos / 60
                     detalle = f"Sin actividad frente a la cámara desde hace más de {minutos:.0f} minuto(s)"
-                    alerta_id = registrar_alerta(estacion_id, detalle, tipo="ausencia", captura_path=captura_path)
+                    alerta_id = await registrar_alerta(estacion_id, detalle, tipo="ausencia", captura_path=captura_path)
                     await bus_alertas.emitir(
                         nuevo_evento(
                             estacion_id,
@@ -227,7 +227,7 @@ async def consumir_video(track, estacion_id: str) -> None:
                         captura_path = await loop.run_in_executor(
                             _executor, _guardar_captura_bgr, estacion_id, "expresion", recorte_cara
                         )
-                        alerta_id = registrar_alerta(estacion_id, detalle, tipo="expresion", captura_path=captura_path)
+                        alerta_id = await registrar_alerta(estacion_id, detalle, tipo="expresion", captura_path=captura_path)
                         await bus_alertas.emitir(
                             nuevo_evento(
                                 estacion_id,
@@ -357,7 +357,7 @@ async def consumir_audio(track, estacion_id: str) -> None:
         if not texto:
             continue
 
-        registrar_transcripcion(estacion_id, texto)
+        await registrar_transcripcion(estacion_id, texto)
         await bus_alertas.emitir(nuevo_evento(estacion_id, "transcripcion", {"texto": texto}))
 
         deteccion = contiene_lenguaje_inapropiado(texto, nivel=config_tiempo_real.sensibilidad_lenguaje)
@@ -378,7 +378,7 @@ async def consumir_audio(track, estacion_id: str) -> None:
                 )
 
             etiqueta_deteccion = "Grosería" if categoria_deteccion == "grosería" else "Mal trato"
-            alerta_id = registrar_alerta(
+            alerta_id = await registrar_alerta(
                 estacion_id,
                 f'{etiqueta_deteccion} ("{texto_detectado}") en: "{texto}"',
                 tipo="lenguaje",

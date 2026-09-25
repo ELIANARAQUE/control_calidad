@@ -30,7 +30,7 @@ router = APIRouter()
 async def obtener_opciones_configurables() -> dict:
     """Publico (sin login): la estacion de empleado necesita esto para pintar los select de
     sede/modulo antes de que nadie haya iniciado sesion de supervisor."""
-    return obtener_opciones()
+    return await obtener_opciones()
 
 
 class ListaOpciones(BaseModel):
@@ -42,8 +42,8 @@ class ListaOpciones(BaseModel):
 async def actualizar_opciones_configurables(cuerpo: ListaOpciones, _admin: str = Depends(requerir_admin)) -> dict:
     if cuerpo.tipo not in ("sede", "modulo"):
         raise HTTPException(status_code=400, detail="tipo debe ser 'sede' o 'modulo'")
-    guardar_opciones(cuerpo.tipo, cuerpo.valores)
-    return obtener_opciones()
+    await guardar_opciones(cuerpo.tipo, cuerpo.valores)
+    return await obtener_opciones()
 
 
 @router.get("/estaciones")
@@ -68,7 +68,7 @@ async def eventos_recientes(_admin: str = Depends(requerir_admin)) -> list[dict]
     """Historial reciente (alertas + transcripciones de todas las estaciones) para que el
     panel reconstruya su feed en memoria al cargar una pagina, sin depender de haber estado
     conectado por WebSocket desde antes."""
-    return listar_eventos_recientes()
+    return await listar_eventos_recientes()
 
 
 @router.get("/estaciones/{estacion_id}/sesion")
@@ -76,7 +76,7 @@ async def sesion_estacion(estacion_id: str, _admin: str = Depends(requerir_admin
     """Inicio (y fin, si aplica) de la sesion mas reciente de una estacion, para que el
     centro de control de una sola estacion pueda mostrar solo la actividad de ahora y no
     mezclarla con sesiones viejas de dias/horas anteriores bajo el mismo estacion_id."""
-    sesion = obtener_ultima_sesion(estacion_id)
+    sesion = await obtener_ultima_sesion(estacion_id)
     if sesion is None:
         raise HTTPException(status_code=404, detail="Esta estación no tiene sesiones registradas")
     return sesion
@@ -138,13 +138,13 @@ async def actualizar_sensibilidad(cuerpo: Sensibilidad, _admin: str = Depends(re
 async def listar_trabajadores(_admin: str = Depends(requerir_admin)) -> list[dict]:
     """Un resumen por trabajador para la pagina 'Historial y Reportes': de ahi el supervisor
     elige a quien descargarle el reporte individual."""
-    return listar_trabajadores_para_informe()
+    return await listar_trabajadores_para_informe()
 
 
 @router.get("/informes/trabajadores/{nombre}/reporte.xlsx")
 async def reporte_trabajador_xlsx(nombre: str, _admin: str = Depends(requerir_admin)) -> Response:
     nombre_decodificado = urllib.parse.unquote(nombre)
-    contenido = generar_reporte_trabajador_xlsx(nombre_decodificado)
+    contenido = await generar_reporte_trabajador_xlsx(nombre_decodificado)
     nombre_archivo = "".join(c if c.isalnum() or c in " _-" else "_" for c in nombre_decodificado).strip() or "trabajador"
     return Response(
         content=contenido,

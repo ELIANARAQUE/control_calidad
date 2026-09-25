@@ -20,7 +20,7 @@ async def captura_alerta(alerta_id: int, _admin: str = Depends(requerir_admin)) 
     """Foto guardada automaticamente en el momento en que se disparo la alerta (postura,
     expresion o lenguaje), para que el supervisor pueda ver que la origino sin depender de
     haber estado mirando la transmision en vivo justo en ese instante."""
-    ruta_relativa = obtener_captura_path(alerta_id)
+    ruta_relativa = await obtener_captura_path(alerta_id)
     if not ruta_relativa:
         raise HTTPException(status_code=404, detail="Esta alerta no tiene una captura asociada")
 
@@ -40,7 +40,7 @@ async def marcar_veredicto(alerta_id: int, cuerpo: Veredicto, _admin: str = Depe
     if cuerpo.veredicto not in VEREDICTOS_VALIDOS:
         raise HTTPException(status_code=400, detail=f"veredicto debe ser uno de {VEREDICTOS_VALIDOS}")
 
-    if not actualizar_veredicto(alerta_id, cuerpo.veredicto):
+    if not await actualizar_veredicto(alerta_id, cuerpo.veredicto):
         raise HTTPException(status_code=404, detail="Alerta no encontrada")
 
     return {"alerta_id": alerta_id, "veredicto": cuerpo.veredicto}

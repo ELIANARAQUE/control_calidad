@@ -52,8 +52,8 @@ def _fecha_legible(iso: str | None) -> str:
     return dt.strftime("%d/%m/%Y %H:%M")
 
 
-def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
-    datos = obtener_datos_reporte_trabajador(nombre)
+async def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
+    datos = await obtener_datos_reporte_trabajador(nombre)
     sesiones = datos["sesiones"]
     eventos = datos["eventos"]
 

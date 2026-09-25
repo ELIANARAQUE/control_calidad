@@ -7,10 +7,25 @@ class Settings(BaseSettings):
     app_name: str = "QA Monitor Local"
     max_estaciones_concurrentes: int = 10  # limite duro de conexiones WebRTC activas
 
-    # --- Acceso del panel de supervisor ---
-    # Pensado para una red local cerrada: un usuario/clave compartido es suficiente para
-    # evitar que cualquiera en la red abra el panel, sin necesitar un sistema de cuentas.
-    # Ajustable via .env (ADMIN_USUARIO / ADMIN_CLAVE) para no dejar el valor por defecto en produccion.
+    # --- Supabase (reemplaza la base SQLite local: usuarios, alertas,
+    # transcripciones, eventos de conexion, opciones configurables) ---
+    # Obligatorios: sin esto el backend no arranca (ver app/core/supabase_client.py).
+    # SUPABASE_KEY debe ser la SERVICE ROLE KEY (no la anon key): el backend necesita
+    # poder leer/escribir sin las restricciones de Row Level Security de un cliente publico.
+    supabase_url: str = ""
+    supabase_key: str = ""
+
+    # --- Cifrado de datos sensibles (numero de documento, correo electronico) ---
+    # Clave simetrica de `cryptography.fernet.Fernet`. Generar una con:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # y ponerla en .env como FERNET_KEY -si se pierde o se cambia, los datos cifrados
+    # existentes ya no se pueden descifrar, asi que hacer backup de esta clave.
+    fernet_key: str = ""
+
+    # --- Acceso del panel de supervisor (legado; ver tabla `usuarios` en Supabase) ---
+    # Se mantiene por si algun script viejo todavia depende de un admin de respaldo, pero el
+    # login real del panel ahora valida contra la tabla `usuarios` (rol='admin') + verificacion
+    # facial, no contra estas dos variables.
     admin_usuario: str = "admin"
     admin_clave: str = "admin123"
 

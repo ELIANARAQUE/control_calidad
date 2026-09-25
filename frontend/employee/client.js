@@ -6,7 +6,8 @@ const punto = document.getElementById("punto");
 const subtitulo = document.getElementById("subtitulo");
 const config = document.getElementById("config");
 const seccionActivo = document.getElementById("seccionActivo");
-const inputNombre = document.getElementById("nombreEmpleado");
+const nombreEmpleadoEl = document.getElementById("nombreEmpleado");
+const btnCerrarSesionEmpleado = document.getElementById("btnCerrarSesionEmpleado");
 const sedeSelect = document.getElementById("sedeSelect");
 const moduloSelect = document.getElementById("moduloSelect");
 const checkHabeasData = document.getElementById("checkHabeasData");
@@ -27,8 +28,12 @@ const ecualizador = document.getElementById("ecualizador");
 const bannerAviso = document.getElementById("banner-aviso");
 const bannerAvisoTexto = document.getElementById("banner-aviso-texto");
 
-const CLAVE_NOMBRE = "qamonitor.nombreEmpleado";
 const CLAVE_ESTACION = "qamonitor.estacionId";
+// Guardadas por /login/ tras validar credenciales + rostro (ver frontend/login/index.html).
+// Sin una de estas, esta pagina no deja hacer nada -se redirige a /login/ al cargar-.
+const CLAVE_TOKEN = "qamonitor.token";
+const CLAVE_SESION_NOMBRE = "qamonitor.nombre";
+const CLAVE_SESION_ROL = "qamonitor.rol";
 const CLAVE_HABEAS_DATA = "qamonitor.aceptoHabeasData";
 const CLAVE_SEDE = "qamonitor.sede";
 const CLAVE_MODULO = "qamonitor.modulo";
@@ -52,9 +57,8 @@ function mostrarPanelActivo(mostrar) {
 }
 
 function actualizarBotonIniciar() {
-  btnIniciar.disabled = !(inputNombre.value.trim() && checkHabeasData.checked);
+  btnIniciar.disabled = !(sessionStorage.getItem(CLAVE_TOKEN) && checkHabeasData.checked);
 }
-inputNombre.addEventListener("input", actualizarBotonIniciar);
 checkHabeasData.addEventListener("change", () => {
   // Se recuerda la aceptacion (igual que el nombre/sede) para que el programa de escritorio
   // pueda seguir iniciando la sesion en un solo paso en arranques posteriores, sin tener que
@@ -144,7 +148,14 @@ function animarBarras(streamAudio, barras) {
 }
 
 // --- Sesión activa ---
-async function iniciarMonitoreo(nombreEmpleado) {
+async function iniciarMonitoreo() {
+  const token = sessionStorage.getItem(CLAVE_TOKEN);
+  const nombreEmpleado = sessionStorage.getItem(CLAVE_SESION_NOMBRE);
+  if (!token || !nombreEmpleado) {
+    window.location.href = "/login/";
+    return;
+  }
+
   btnIniciar.disabled = true;
   setEstado("Solicitando cámara y micrófono…");
 
@@ -181,7 +192,7 @@ async function iniciarMonitoreo(nombreEmpleado) {
       setEstado("Sesión activa · transmitiendo en vivo", "conectado");
     } else if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
       setEstado("Conexión perdida. Reintentando…", "error");
-      setTimeout(() => iniciarMonitoreo(nombreEmpleado), 3000);
+      setTimeout(() => iniciarMonitoreo(), 3000);
     }
   };
 
@@ -199,7 +210,7 @@ async function iniciarMonitoreo(nombreEmpleado) {
       body: JSON.stringify({
         sdp: pc.localDescription.sdp,
         type: pc.localDescription.type,
-        empleado_nombre: nombreEmpleado,
+        token,
         sede: sedeSelect.value,
         modulo: moduloSelect.value,
         acepto_habeas_data: checkHabeasData.checked,
@@ -212,6 +223,10 @@ async function iniciarMonitoreo(nombreEmpleado) {
     return;
   }
 
+  if (respuesta.status === 401) {
+    cerrarSesionEmpleado();
+    return;
+  }
   if (!respuesta.ok) {
     const detalle = await respuesta.json().catch(() => ({}));
     setEstado(detalle.detail || "El servidor rechazó la conexión (código " + respuesta.status + ")", "error");
@@ -303,29 +318,44 @@ function conectarNotificaciones() {
   };
 }
 
+function cerrarSesionEmpleado() {
+  sessionStorage.removeItem(CLAVE_TOKEN);
+  sessionStorage.removeItem(CLAVE_SESION_NOMBRE);
+  sessionStorage.removeItem(CLAVE_SESION_ROL);
+  window.location.href = "/login/";
+}
+btnCerrarSesionEmpleado.addEventListener("click", (ev) => {
+  ev.preventDefault();
+  cerrarSesionEmpleado();
+});
+
 btnIniciar.addEventListener("click", () => {
-  const nombre = inputNombre.value.trim();
-  if (!nombre || !checkHabeasData.checked) return;
-  localStorage.setItem(CLAVE_NOMBRE, nombre);
-  iniciarMonitoreo(nombre);
+  if (!checkHabeasData.checked) return;
+  iniciarMonitoreo();
 });
 
 btnDetener.addEventListener("click", detenerMonitoreo);
 
 // El programa de escritorio (ver desktop_client/app.py) abre esta pagina con
-// ?estacion_id=...&nombre=... como parametros de URL: el id viene de un archivo que el
-// propio programa guarda junto a si mismo en el PC (estable entre reinicios, no depende
-// del cache del navegador embebido), y el nombre es opcional si se preconfiguro el puesto.
-// Si vienen en la URL tienen prioridad sobre lo guardado en localStorage, que solo sirve
-// como respaldo para cuando se accede desde un navegador normal sin el programa.
+// ?estacion_id=... como parametro de URL: viene de un archivo que el propio programa guarda
+// junto a si mismo en el PC (estable entre reinicios, no depende del cache del navegador
+// embebido). El nombre del empleado YA NO se toma de la URL ni de un campo de texto libre:
+// ahora viene de la cuenta autenticada en /login/ (con verificacion facial), guardada en
+// sessionStorage -sin una sesion valida ahi, esta pagina redirige a /login/-.
 window.addEventListener("DOMContentLoaded", async () => {
+  const token = sessionStorage.getItem(CLAVE_TOKEN);
+  const nombreSesion = sessionStorage.getItem(CLAVE_SESION_NOMBRE);
+  if (!token || !nombreSesion) {
+    window.location.href = "/login/";
+    return;
+  }
+  nombreEmpleadoEl.textContent = nombreSesion;
+
   iniciarPreview();
   await cargarOpcionesSedeModulo();
 
   const parametros = new URLSearchParams(window.location.search);
   const estacionIdDelPrograma = parametros.get("estacion_id");
-  const nombreDelPrograma = parametros.get("nombre");
-
   if (estacionIdDelPrograma) {
     localStorage.setItem(CLAVE_ESTACION, estacionIdDelPrograma);
   }
@@ -339,19 +369,13 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const yaAceptoHabeasData = localStorage.getItem(CLAVE_HABEAS_DATA) === "1";
   checkHabeasData.checked = yaAceptoHabeasData;
-
-  const nombreInicial = nombreDelPrograma || localStorage.getItem(CLAVE_NOMBRE);
-  if (nombreInicial) {
-    inputNombre.value = nombreInicial;
-    localStorage.setItem(CLAVE_NOMBRE, nombreInicial);
-  }
   actualizarBotonIniciar();
 
-  if (nombreInicial && yaAceptoHabeasData) {
+  if (yaAceptoHabeasData) {
     // Arranque en un solo paso (equipo del programa de escritorio, consentimiento ya dado
     // en una sesion anterior en este mismo equipo).
-    iniciarMonitoreo(nombreInicial);
+    iniciarMonitoreo();
   } else {
-    setEstado("Ingresa tu nombre y acepta el aviso de datos para iniciar la sesión de monitoreo");
+    setEstado("Acepta el aviso de datos para iniciar la sesión de monitoreo");
   }
 });

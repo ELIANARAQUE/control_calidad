@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Iniciar sesión — Control de Calidad</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" />
+<style>
+  body { font-family: "Manrope", sans-serif; }
+  h1, h2, .titulo { font-family: "Space Grotesk", sans-serif; }
+  .oculto { display: none !important; }
+</style>
+</head>
+<body class="bg-[#0f1d38] min-h-screen flex items-center justify-center p-4">
+
+<div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 flex flex-col gap-5" id="tarjetaLogin">
+  <div class="flex items-center gap-3">
+    <div class="w-11 h-11 rounded-xl bg-[#10b981] flex items-center justify-center shrink-0">
+      <span class="material-symbols-outlined text-[#0f1d38] text-[24px]">shield</span>
+    </div>
+    <div class="flex flex-col">
+      <span class="titulo font-bold text-[#0f1c30] text-lg leading-tight">Control de Calidad</span>
+      <span class="text-[11px] text-[#586174] uppercase tracking-wider font-semibold">Universitaria de Colombia</span>
+    </div>
+  </div>
+
+  <form id="formLogin" class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-semibold text-[#0f1c30]" for="correo">Correo electrónico</label>
+      <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="correo" type="email" autocomplete="username" required />
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-semibold text-[#0f1c30]" for="clave">Contraseña</label>
+      <div class="relative">
+        <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 pr-10 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="clave" type="password" autocomplete="current-password" required />
+        <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-[#8890a0]" id="btnOjoClave" aria-label="Mostrar contraseña">
+          <span class="material-symbols-outlined text-[20px]">visibility</span>
+        </button>
+      </div>
+    </div>
+    <p class="oculto text-sm text-red-600" id="errorLogin"></p>
+    <button class="w-full bg-[#2563eb] text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" type="submit">
+      <span class="material-symbols-outlined text-[18px]">login</span> Ingresar
+    </button>
+  </form>
+
+  <p class="text-center text-sm text-[#586174]">
+    ¿No tienes cuenta? <a class="text-[#2563eb] font-semibold" href="/registro/">Regístrate aquí</a>
+  </p>
+</div>
+
+<!-- Paso 2: verificacion facial -->
+<div class="oculto fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" id="modalRostro">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
+    <h2 class="titulo font-bold text-lg text-[#0f1c30] flex items-center gap-2">
+      <span class="material-symbols-outlined">face</span> Verificación de rostro
+    </h2>
+    <p class="text-sm text-[#586174]">Activa tu cámara y mira de frente. Comprobamos que el rostro coincida con el de tu registro.</p>
+
+    <div class="relative rounded-xl overflow-hidden bg-[#0b1c30] aspect-video">
+      <video id="video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+      <canvas id="canvas" class="hidden"></canvas>
+    </div>
+
+    <p class="oculto text-sm text-red-600" id="errorRostro"></p>
+    <p class="oculto text-sm text-[#0f9d68] font-semibold" id="okRostro"></p>
+
+    <div class="flex gap-3">
+      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#eef1f8] text-[#0f1c30]" id="btnCancelarRostro" type="button">Cancelar</button>
+      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#10b981] text-[#00220f] flex items-center justify-center gap-2" id="btnCapturarRostro" type="button">
+        <span class="material-symbols-outlined text-[18px]">camera</span> Verificar
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const formLogin = document.getElementById("formLogin");
+const errorLogin = document.getElementById("errorLogin");
+const modalRostro = document.getElementById("modalRostro");
+const errorRostro = document.getElementById("errorRostro");
+const okRostro = document.getElementById("okRostro");
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const btnOjoClave = document.getElementById("btnOjoClave");
+const claveInput = document.getElementById("clave");
+
+btnOjoClave.addEventListener("click", () => {
+  const mostrar = claveInput.type === "password";
+  claveInput.type = mostrar ? "text" : "password";
+  btnOjoClave.querySelector(".material-symbols-outlined").textContent = mostrar ? "visibility_off" : "visibility";
+});
+
+let stream = null;
+let datosSesionPendiente = null; // {usuario_id, nombre, rol}
+
+async function abrirCamara() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+    video.srcObject = stream;
+  } catch (err) {
+    errorRostro.textContent = "No se pudo acceder a la cámara: " + err.message;
+    errorRostro.classList.remove("oculto");
+  }
+}
+
+function cerrarCamara() {
+  stream?.getTracks().forEach((t) => t.stop());
+  stream = null;
+}
+
+formLogin.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  errorLogin.classList.add("oculto");
+  try {
+    const resp = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ correo: document.getElementById("correo").value.trim(), clave: claveInput.value }),
+    });
+    const datos = await resp.json();
+    if (!resp.ok) throw new Error(datos.detail || "No se pudo iniciar sesión");
+
+    datosSesionPendiente = datos;
+    modalRostro.classList.remove("oculto");
+    errorRostro.classList.add("oculto");
+    okRostro.classList.add("oculto");
+    await abrirCamara();
+  } catch (err) {
+    errorLogin.textContent = err.message;
+    errorLogin.classList.remove("oculto");
+  }
+});
+
+document.getElementById("btnCancelarRostro").addEventListener("click", () => {
+  cerrarCamara();
+  modalRostro.classList.add("oculto");
+  datosSesionPendiente = null;
+});
+
+document.getElementById("btnCapturarRostro").addEventListener("click", async () => {
+  if (!stream || !datosSesionPendiente) return;
+  errorRostro.classList.add("oculto");
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+
+  canvas.toBlob(async (blob) => {
+    const form = new FormData();
+    form.append("usuario_id", datosSesionPendiente.usuario_id);
+    form.append("nombre", datosSesionPendiente.nombre);
+    form.append("rol", datosSesionPendiente.rol);
+    form.append("foto", blob, "rostro.jpg");
+
+    try {
+      const resp = await fetch("/api/auth/verificar-rostro", { method: "POST", body: form });
+      const datos = await resp.json();
+      if (!resp.ok) throw new Error(datos.detail || "No se pudo verificar el rostro");
+
+      okRostro.textContent = "¡Rostro verificado! Redirigiendo…";
+      okRostro.classList.remove("oculto");
+      sessionStorage.setItem("qamonitor.token", datos.token);
+      sessionStorage.setItem("qamonitor.nombre", datos.nombre);
+      sessionStorage.setItem("qamonitor.rol", datos.rol);
+      cerrarCamara();
+      setTimeout(() => (window.location.href = datos.destino), 700);
+    } catch (err) {
+      errorRostro.textContent = err.message;
+      errorRostro.classList.remove("oculto");
+    }
+  }, "image/jpeg", 0.92);
+});
+</script>
+</body>
+</html>

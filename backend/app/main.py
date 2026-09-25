@@ -3,6 +3,17 @@
 Ejecutar con:
     uvicorn app.main:app --host 0.0.0.0 --port 8000
 """
+import sys
+
+# La consola de Windows por defecto usa cp1252, que no puede imprimir emojis -deepface (usado
+# para el login facial) imprime una advertencia con "⚠️" apenas se importa, y sin esto el
+# servidor se cae al arrancar con UnicodeEncodeError antes de levantar nada. Se fuerza UTF-8
+# en stdout/stderr aqui, antes de cualquier otro import, para que ningun print con emoji o
+# tilde tumbe el proceso sin importar que libreria lo escriba.
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import logging
 
 from fastapi import FastAPI
@@ -30,9 +41,12 @@ app.include_router(alertas.router, prefix="/api", tags=["alertas"])
 app.include_router(estaciones.router, prefix="/api", tags=["estaciones"])
 app.include_router(supervisor.router, tags=["supervisor"])
 
-# Sirve el frontend estatico (clientes de empleado y panel de supervisor)
+# Sirve el frontend estatico (clientes de empleado y panel de supervisor, mas el registro y el
+# login unificado -compartidos por ambos roles-).
 app.mount("/empleado", StaticFiles(directory="../frontend/employee", html=True), name="empleado")
 app.mount("/supervisor", StaticFiles(directory="../frontend/supervisor", html=True), name="supervisor-ui")
+app.mount("/registro", StaticFiles(directory="../frontend/registro", html=True), name="registro")
+app.mount("/login", StaticFiles(directory="../frontend/login", html=True), name="login")
 
 
 @app.get("/api/salud")
