@@ -9,6 +9,7 @@ const Core = (() => {
   const MAX_EVENTOS_POR_ESTACION = 60;
   const COLORES_AVATAR = ["#0f9d68", "#6d28d9", "#1d4ed8", "#b45309", "#0f766e", "#7c3aed", "#0891b2"];
   const CLAVE_TOKEN = "qamonitor.supervisor.token";
+  const CLAVE_FOCO = "qamonitor.supervisor.estacionFoco";
 
   let tokenSesion = sessionStorage.getItem(CLAVE_TOKEN);
   const estaciones = new Map(); // estacion_id -> { empleado, sede, modulo, conectada, pendientes, eventos }
@@ -61,9 +62,14 @@ const Core = (() => {
         break;
       default:
         if (TIPOS_CON_VEREDICTO.has(evento.tipo)) {
-          contadores.pendientes++;
           contadores.porTipo[evento.tipo] = (contadores.porTipo[evento.tipo] || 0) + 1;
-          estacion.pendientes++;
+          // Solo cuenta como "pendiente" si todavia no tiene veredicto: los eventos que
+          // llegan en vivo siempre estan sin revisar, pero los que se cargan desde el
+          // historial (`cargarEventosRecientes`) pueden ya venir confirmados/descartados.
+          if (!evento.veredicto) {
+            contadores.pendientes++;
+            estacion.pendientes++;
+          }
         }
         estacion.eventos.unshift(evento);
     }
@@ -107,10 +113,39 @@ const Core = (() => {
         estacion.modulo = item.modulo;
         estacion.conectada = true;
       }
-      listenersListo.forEach((cb) => cb());
     } catch (err) {
       // el panel sigue funcionando solo con lo que llegue por WebSocket a partir de ahora
     }
+  }
+
+  // Sin esto, el feed de cada pagina arrancaba vacio en cada carga/navegacion (solo se llenaba
+  // con lo que llegara en vivo por WebSocket MIENTRAS esa pagina estuviera abierta), aunque los
+  // datos seguian intactos en la base de datos -por eso se veian bien en Historial/Excel pero
+  // "desaparecian" al cambiar de pestaña del menu y volver.
+  async function cargarEventosRecientes() {
+    try {
+      const resp = await apiFetch("/api/eventos/recientes");
+      if (resp.status === 401) return cerrarSesionLocal();
+      if (!resp.ok) return;
+      const eventos = await resp.json();
+      for (const evento of eventos) procesarEvento(evento);
+    } catch (err) {
+      // el panel sigue funcionando solo con lo que llegue por WebSocket a partir de ahora
+    }
+  }
+
+  // --- Foco en una sola estacion (para cuando hay varias camaras conectadas a la vez y las
+  // transcripciones/alertas de todas juntas se vuelven dificiles de seguir): se guarda en
+  // sessionStorage (no en memoria) para que sobreviva al navegar entre paginas del panel,
+  // que son recargas completas de pagina, no una SPA.
+  function obtenerFoco() {
+    return sessionStorage.getItem(CLAVE_FOCO);
+  }
+  function establecerFoco(estacionId) {
+    sessionStorage.setItem(CLAVE_FOCO, estacionId);
+  }
+  function quitarFoco() {
+    sessionStorage.removeItem(CLAVE_FOCO);
   }
 
   function colorAvatar(estacionId) {
@@ -298,14 +333,18 @@ const Core = (() => {
     const formLogin = document.getElementById("formLogin");
     const loginError = document.getElementById("loginError");
 
-    function iniciarPagina() {
+    async function iniciarPagina() {
       pantallaLogin?.classList.add("oculto");
       appContenido?.classList.remove("oculto");
       marcarNavActiva();
       iniciarReloj();
       iniciarAvisoGlobal();
-      cargarEstacionesActivas();
       conectarWebSocket();
+      // Estaciones activas primero (llena nombre/sede/modulo), despues eventos (asi el feed
+      // ya puede mostrar el nombre del empleado en vez del id crudo de la estacion).
+      await cargarEstacionesActivas();
+      await cargarEventosRecientes();
+      listenersListo.forEach((cb) => cb());
       if (alListo) alListo();
     }
 
@@ -351,6 +390,7 @@ const Core = (() => {
     onEvento: (cb) => listenersEvento.push(cb),
     onListo: (cb) => listenersListo.push(cb),
     colorAvatar, iniciales, hace, textoEvento, crearElementoEvento, enviarVeredicto,
+    obtenerFoco, establecerFoco, quitarFoco,
     iniciar,
   };
 })();

@@ -6,9 +6,39 @@ const contadorAlertasEl = document.getElementById("contadorAlertas");
 const buscadorEl = document.getElementById("buscador");
 let filtroBusqueda = "";
 
+// Ver "Monitorear solo esta" en transcripciones.js: mismo mecanismo de foco por estacion,
+// guardado en sessionStorage, para no mezclar las alertas de varias camaras a la vez.
+function actualizarBannerFoco() {
+  let banner = document.getElementById("bannerFoco");
+  const foco = Core.obtenerFoco();
+  if (!foco) {
+    banner?.remove();
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "bannerFoco";
+    banner.className = "flex items-center justify-between gap-space-sm bg-primary/10 text-primary px-space-md py-space-sm rounded-lg mb-space-sm font-label-md text-label-md font-semibold";
+    feedEl.parentElement.insertBefore(banner, feedEl);
+  }
+  const nombre = Core.estaciones.get(foco)?.empleado || foco;
+  banner.innerHTML = `
+    <span class="flex items-center gap-space-xs"><span class="material-symbols-outlined text-[18px]">center_focus_strong</span>Monitoreando solo a: ${nombre}</span>
+    <button type="button" id="btnQuitarFoco" class="underline">Ver todas las estaciones</button>
+  `;
+  document.getElementById("btnQuitarFoco").addEventListener("click", () => {
+    Core.quitarFoco();
+    actualizarBannerFoco();
+    renderizar();
+  });
+}
+
 function renderizar() {
+  actualizarBannerFoco();
+  const foco = Core.obtenerFoco();
   const combinado = [];
   for (const [id, datos] of Core.estaciones) {
+    if (foco && id !== foco) continue;
     for (const evento of datos.eventos) {
       if (evento.tipo === "alerta_postura" || evento.tipo === "alerta_expresion") {
         combinado.push({ ...evento, estacion_id: evento.estacion_id || id });

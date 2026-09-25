@@ -113,6 +113,10 @@ function renderizarGrid() {
         }
       </div>
       <div class="cuerpo">
+        <button type="button" class="btn-veredicto btn-enfocar w-max" data-enfocar="${id}">
+          <span class="material-symbols-outlined text-[14px] align-middle">center_focus_strong</span>
+          Monitorear solo esta
+        </button>
         ${ultimoEvento ? "" : '<p class="vacio-feed">Sin actividad todavía.</p>'}
       </div>
     `;
@@ -125,9 +129,19 @@ function renderizarGrid() {
   }
 }
 
-// Refresca las miniaturas de video cada 400ms (~2.5fps visibles): el backend ahora genera el
-// snapshot con cada frame que llega de la camara, no solo a los ~3fps de YOLO, asi que vale
-// la pena pedirlo mas seguido para que el panel se vea fluido y no "congelado".
+// Delegado en el contenedor (las tarjetas se regeneran en cada renderizarGrid): al presionar
+// "Monitorear solo esta" se guarda el foco y se salta directo a Transcripciones, que es donde
+// mas se nota el ruido de varias camaras hablando a la vez.
+gridEstacionesEl.addEventListener("click", (ev) => {
+  const boton = ev.target.closest("[data-enfocar]");
+  if (!boton) return;
+  Core.establecerFoco(boton.dataset.enfocar);
+  window.location.href = "transcripciones.html";
+});
+
+// Refresca las miniaturas de video cada 150ms (~6-7fps visibles): el backend ahora genera el
+// snapshot a ~10fps (no atado a los ~3fps de YOLO), asi que vale la pena pedirlo mas seguido
+// para que el panel se vea fluido y no "congelado", sin pasarse de lo que el backend produce.
 setInterval(() => {
   document.querySelectorAll(".video-wrap img[data-estacion]").forEach((img) => {
     const id = img.dataset.estacion;
@@ -135,7 +149,7 @@ setInterval(() => {
     img.style.display = "";
     if (img.nextElementSibling) img.nextElementSibling.style.display = "none";
   });
-}, 400);
+}, 150);
 
 function renderizarFeed() {
   feedEl.innerHTML = "";

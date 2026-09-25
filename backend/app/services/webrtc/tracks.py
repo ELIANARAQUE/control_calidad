@@ -57,6 +57,19 @@ def _guardar_captura_bgr(estacion_id: str, tipo: str, imagen_bgr: np.ndarray) ->
         return None
 
 
+def _codificar_snapshot_jpeg(frame_bgr: np.ndarray) -> bytes | None:
+    """Corre en el ThreadPoolExecutor (nunca en el event loop): `cv2.imencode` es una llamada
+    bloqueante de CPU, y con varias camaras conectadas a la vez, hacerla directamente en el
+    loop de asyncio (como se hacia antes) alcanzaba a acumularse lo suficiente para dejar sin
+    turno a las corutinas de audio -sintoma reportado como "con varias camaras no llega nada
+    de audio a los logs"-, ya que un `await` nunca se cede mientras el CPU esta ocupado en
+    codigo sincrono."""
+    import cv2
+
+    ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    return buffer_jpeg.tobytes() if ok_jpeg else None
+
+
 def _guardar_captura_bytes(estacion_id: str, tipo: str, jpeg_bytes: bytes) -> str | None:
     try:
         carpeta = RUTA_CAPTURAS / estacion_id
@@ -76,6 +89,7 @@ async def consumir_video(track, estacion_id: str) -> None:
     detector = DetectorYOLO()
     detector_emocion = DetectorEmocion() if settings.emocion_habilitada else None
     limitador = LimitadorFPS(settings.yolo_target_fps)
+    limitador_snapshot = LimitadorFPS(10.0)  # el panel no necesita mas de ~10fps de miniatura
     loop = asyncio.get_event_loop()
 
     # Ventana deslizante de los ultimos N frames (keypoints, confianzas) por estacion:
@@ -96,25 +110,24 @@ async def consumir_video(track, estacion_id: str) -> None:
             logger.info("Track de video finalizado para estacion %s", estacion_id)
             break
 
-        # El snapshot para el panel de supervisor se genera con CADA frame que llega (no solo
-        # los que YOLO alcanza a procesar a `yolo_target_fps`): antes quedaba atado al mismo
-        # limitador que la inferencia, asi que el video del panel se veia a ~3fps o menos
-        # (entrecortado/"borroso" por el movimiento entre cuadros). codificar un JPEG es
-        # barato comparado con la inferencia, asi que hacerlo a la tasa real de la camara
-        # (tipicamente 15-30fps) no le cuesta nada a la GPU/CPU.
-        frame_bgr_snapshot = None
         try:
             frame_bgr_snapshot = frame.to_ndarray(format="bgr24")
-            import cv2
-
-            ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", frame_bgr_snapshot, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            if ok_jpeg:
-                gestor_estaciones.actualizar_snapshot(estacion_id, buffer_jpeg.tobytes())
         except Exception:
-            logger.exception("No se pudo generar snapshot JPEG para estacion %s", estacion_id)
+            logger.exception("No se pudo decodificar frame de video de estacion %s", estacion_id)
+            continue
 
-        if frame_bgr_snapshot is None:
-            continue  # no se pudo decodificar el frame: nada que pasarle a YOLO tampoco
+        # El snapshot para el panel de supervisor se genera a ~10fps (no a los ~3fps de YOLO,
+        # que se veian entrecortados) pero tampoco a la tasa cruda de la camara: codificar un
+        # JPEG en el thread-pool sigue costando CPU, y hacerlo 30 veces por segundo POR CAMARA
+        # con varias estaciones conectadas a la vez satura el executor compartido con Whisper,
+        # dejando la transcripcion sin turno. 10fps ya se ve fluido para un panel de monitoreo.
+        if limitador_snapshot.debe_procesar_ahora():
+            try:
+                jpeg_bytes = await loop.run_in_executor(_executor, _codificar_snapshot_jpeg, frame_bgr_snapshot)
+                if jpeg_bytes:
+                    gestor_estaciones.actualizar_snapshot(estacion_id, jpeg_bytes)
+            except Exception:
+                logger.exception("No se pudo generar snapshot JPEG para estacion %s", estacion_id)
 
         if not limitador.debe_procesar_ahora():
             continue  # se descarta el frame para YOLO: mantiene la VRAM/GPU libre

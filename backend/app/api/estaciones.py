@@ -11,7 +11,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.core.auth import requerir_admin
-from app.core.db import guardar_opciones, listar_trabajadores_para_informe, obtener_opciones
+from app.core.db import guardar_opciones, listar_eventos_recientes, listar_trabajadores_para_informe, obtener_opciones
 from app.core.state import config_tiempo_real, gestor_estaciones, notificador_estaciones
 from app.services.informes.reporte import generar_reporte_trabajador_xlsx
 from app.services.stt.lenguaje import NIVELES_SENSIBILIDAD
@@ -55,6 +55,14 @@ async def listar_estaciones(_admin: str = Depends(requerir_admin)) -> list[dict]
         }
         for info in gestor_estaciones.listar()
     ]
+
+
+@router.get("/eventos/recientes")
+async def eventos_recientes(_admin: str = Depends(requerir_admin)) -> list[dict]:
+    """Historial reciente (alertas + transcripciones de todas las estaciones) para que el
+    panel reconstruya su feed en memoria al cargar una pagina, sin depender de haber estado
+    conectado por WebSocket desde antes."""
+    return listar_eventos_recientes()
 
 
 @router.get("/estaciones/{estacion_id}/snapshot.jpg")

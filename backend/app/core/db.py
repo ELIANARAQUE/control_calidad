@@ -136,6 +136,51 @@ def obtener_captura_path(alerta_id: int) -> str | None:
         return fila[0] if fila else None
 
 
+def listar_eventos_recientes(limite_por_tipo: int = 300) -> list[dict]:
+    """Alertas y transcripciones recientes de TODAS las estaciones, en el mismo formato que
+    `nuevo_evento`/`bus_alertas.emitir` producen en vivo. Existe para que el panel de
+    supervisor pueda reconstruir su historial en memoria al cargar (o recargar, ej. al
+    navegar entre paginas) sin depender de haber estado conectado por WebSocket desde antes
+    -sin esto, cambiar de pestaña del menu "vaciaba" el feed aunque los datos seguian en la
+    base de datos (se veian bien en Historial y en el Excel, pero no en el panel en vivo)."""
+    with _conexion() as conn:
+        conn.row_factory = sqlite3.Row
+        filas_alertas = conn.execute(
+            "SELECT id, estacion_id, tipo, detalle, timestamp, veredicto, captura_path FROM alertas "
+            "ORDER BY timestamp DESC LIMIT ?",
+            (limite_por_tipo,),
+        ).fetchall()
+        filas_transcripciones = conn.execute(
+            "SELECT estacion_id, texto, timestamp FROM transcripciones ORDER BY timestamp DESC LIMIT ?",
+            (limite_por_tipo,),
+        ).fetchall()
+
+    eventos = []
+    for fila in filas_alertas:
+        eventos.append(
+            {
+                "estacion_id": fila["estacion_id"],
+                "tipo": f"alerta_{fila['tipo']}",
+                "timestamp": fila["timestamp"],
+                "detalle": fila["detalle"],
+                "alerta_id": fila["id"],
+                "veredicto": fila["veredicto"],
+                "captura_url": f"/api/alertas/{fila['id']}/captura.jpg" if fila["captura_path"] else None,
+            }
+        )
+    for fila in filas_transcripciones:
+        eventos.append(
+            {
+                "estacion_id": fila["estacion_id"],
+                "tipo": "transcripcion",
+                "timestamp": fila["timestamp"],
+                "texto": fila["texto"],
+            }
+        )
+    eventos.sort(key=lambda e: e["timestamp"])
+    return eventos
+
+
 def actualizar_veredicto(alerta_id: int, veredicto: str) -> bool:
     """veredicto: 'confirmada' (fue un movimiento real que valia la pena reportar) o
     'falsa_alarma' (ruido/gesto normal). Devuelve False si el id no existe."""
