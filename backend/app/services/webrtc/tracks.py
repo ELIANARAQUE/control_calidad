@@ -36,6 +36,20 @@ logger = logging.getLogger(__name__)
 # max_workers moderado: la GPU es el cuello de botella real, no la CPU.
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="inferencia")
 
+# Whisper corre en su PROPIO pool, separado del de video (YOLO + HSEmotion): con varias
+# camaras conectadas, YOLO/emocion mandan varias tareas por segundo al pool compartido, y una
+# transcripcion que quede encolada detras de una racha de esas tareas -o que se demore por
+# contencion de GPU entre CUDA (torch/YOLO) y CTranslate2 (faster-whisper) en el mismo device-
+# puede tardar mucho mas de lo normal. Aislarla evita que el audio dependa de que tan ocupado
+# este el pool de video en ese instante.
+_executor_audio = ThreadPoolExecutor(max_workers=2, thread_name_prefix="whisper")
+
+# Si transcribir un chunk se queda pegado mas de esto, se descarta y se seguye con el
+# siguiente: sin este limite, una sola llamada colgada (ej. deadlock de CUDA entre varios
+# runtimes compartiendo la GPU) congela para siempre el bucle de audio de esa estacion -se
+# ve como "el audio llego, Whisper empezo a procesar, y ahi se corta todo silenciosamente".
+_TIMEOUT_TRANSCRIPCION_SEGUNDOS = 12.0
+
 
 def _guardar_captura_bgr(estacion_id: str, tipo: str, imagen_bgr: np.ndarray) -> str | None:
     """Guarda en disco una foto (recorte de cara si se pudo ubicar, si no el cuadro completo)
@@ -330,13 +344,27 @@ async def consumir_audio(track, estacion_id: str) -> None:
             estacion_id, len(chunk) / sample_rate_objetivo, energia_chunk, settings.audio_energia_minima,
         )
 
+        inicio_transcripcion = time.monotonic()
         try:
-            texto = await loop.run_in_executor(_executor, transcriptor.transcribir_chunk, chunk)
+            texto = await asyncio.wait_for(
+                loop.run_in_executor(_executor_audio, transcriptor.transcribir_chunk, chunk),
+                timeout=_TIMEOUT_TRANSCRIPCION_SEGUNDOS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[debug-audio] estacion %s: Whisper tardo mas de %.0fs transcribiendo un chunk de %.2fs, "
+                "se descarta y se sigue con el siguiente (posible contencion de GPU)",
+                estacion_id, _TIMEOUT_TRANSCRIPCION_SEGUNDOS, len(chunk) / sample_rate_objetivo,
+            )
+            continue
         except Exception:
             logger.exception("Error al transcribir audio de estacion %s", estacion_id)
             continue
 
-        logger.info("[debug-audio] estacion %s: texto transcrito = %r", estacion_id, texto)
+        logger.info(
+            "[debug-audio] estacion %s: texto transcrito en %.2fs = %r",
+            estacion_id, time.monotonic() - inicio_transcripcion, texto,
+        )
 
         if not texto:
             continue
