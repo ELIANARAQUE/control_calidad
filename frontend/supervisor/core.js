@@ -92,10 +92,25 @@ const Core = (() => {
       if (estadoTextoEl) estadoTextoEl.textContent = "Conectado en vivo";
       puntoEl?.classList.add("conectado");
     };
-    ws.onclose = (ev) => {
+    ws.onclose = async (ev) => {
       if (ev.code === 4401) {
         cerrarSesionLocal();
         return;
+      }
+      // El servidor cierra el socket ANTES de aceptarlo cuando el token es invalido (para
+      // rechazar la conexion desde el handshake), y en ese caso el navegador nunca entrega el
+      // codigo 4401 -llega como un cierre generico (normalmente 1006)-, asi que sin esto el
+      // panel se quedaba reintentando cada 3s para siempre en vez de pedir reingresar cuando
+      // el token quedaba invalido (ej. el servidor se reinicio y perdio las sesiones en memoria).
+      try {
+        const resp = await apiFetch("/api/estaciones");
+        if (resp.status === 401 || resp.status === 403) {
+          cerrarSesionLocal();
+          return;
+        }
+      } catch (err) {
+        // sin conexion al servidor: no se puede saber si el token sigue siendo valido, se
+        // reintenta normalmente mas abajo
       }
       if (estadoTextoEl) estadoTextoEl.textContent = "Desconectado. Reintentando…";
       puntoEl?.classList.remove("conectado");
