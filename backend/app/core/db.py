@@ -136,6 +136,31 @@ def obtener_captura_path(alerta_id: int) -> str | None:
         return fila[0] if fila else None
 
 
+def obtener_ultima_sesion(estacion_id: str) -> dict | None:
+    """Inicio (y fin, si ya se desconecto) de la sesion mas reciente de una estacion, segun
+    `eventos_conexion`. Existe para que el centro de control de una sola estacion pueda
+    mostrar solo la actividad de la sesion actual/mas reciente -sin esto, si la misma
+    computadora se reconecta varias veces en el dia (o en dias distintos) reusando el mismo
+    `estacion_id`, se mezclaban alertas/transcripciones de sesiones viejas con las de ahora,
+    lo que el supervisor via como "alertas de otra camara"."""
+    with _conexion() as conn:
+        conn.row_factory = sqlite3.Row
+        ultima_conexion = conn.execute(
+            "SELECT timestamp FROM eventos_conexion WHERE estacion_id = ? AND tipo = 'conexion' "
+            "ORDER BY timestamp DESC LIMIT 1",
+            (estacion_id,),
+        ).fetchone()
+        if ultima_conexion is None:
+            return None
+        inicio = ultima_conexion["timestamp"]
+        desconexion_posterior = conn.execute(
+            "SELECT timestamp FROM eventos_conexion WHERE estacion_id = ? AND tipo = 'desconexion' "
+            "AND timestamp > ? ORDER BY timestamp ASC LIMIT 1",
+            (estacion_id, inicio),
+        ).fetchone()
+        return {"inicio": inicio, "fin": desconexion_posterior["timestamp"] if desconexion_posterior else None}
+
+
 def listar_eventos_recientes(limite_por_tipo: int = 300) -> list[dict]:
     """Alertas y transcripciones recientes de TODAS las estaciones, en el mismo formato que
     `nuevo_evento`/`bus_alertas.emitir` producen en vivo. Existe para que el panel de

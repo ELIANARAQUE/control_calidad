@@ -23,6 +23,32 @@ if (!estacionId) {
     '<div class="p-space-lg"><p class="font-body-md text-body-md text-error">No se especificó ninguna estación (falta ?id= en la URL). Vuelve al Centro de Monitoreo y usa "Monitorear solo esta".</p></div>';
 }
 
+// Si la misma computadora se reconecta varias veces (mismo estacion_id, otro dia u otra hora),
+// sin esto se mezclaban en un solo feed las alertas/transcripciones de TODAS esas sesiones,
+// lo que se veia como "alertas viejas" o "de otra camara". Se limita a la sesion mas reciente.
+let sesionInicio = null;
+let sesionFin = null;
+let mostrandoHistorialCompleto = false;
+
+async function cargarSesion() {
+  try {
+    const resp = await Core.apiFetch(`/api/estaciones/${estacionId}/sesion`);
+    if (!resp.ok) return;
+    const datos = await resp.json();
+    sesionInicio = datos.inicio;
+    sesionFin = datos.fin;
+  } catch (err) {
+    // sin limite de sesion: se muestra todo el historial de la estacion
+  }
+}
+
+function dentroDeLaSesionActual(evento) {
+  if (mostrandoHistorialCompleto || !sesionInicio) return true;
+  if (evento.timestamp < sesionInicio) return false;
+  if (sesionFin && evento.timestamp > sesionFin) return false;
+  return true;
+}
+
 function renderizarCabecera() {
   const datos = Core.estaciones.get(estacionId);
   const nombre = datos?.empleado || "Sin identificar";
@@ -53,14 +79,39 @@ setInterval(() => {
   if (img) img.src = Core.conToken(`/api/estaciones/${estacionId}/snapshot.jpg?t=${Date.now()}`);
 }, 150);
 
+function actualizarBannerSesion() {
+  let banner = document.getElementById("bannerSesion");
+  if (!sesionInicio) {
+    banner?.remove();
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "bannerSesion";
+    banner.className = "flex items-center justify-between gap-space-sm bg-primary/10 text-primary px-space-md py-space-sm rounded-lg mb-space-sm font-label-md text-label-md font-semibold";
+    feedEl.parentElement.insertBefore(banner, feedEl);
+  }
+  banner.innerHTML = mostrandoHistorialCompleto
+    ? `<span class="flex items-center gap-space-xs"><span class="material-symbols-outlined text-[18px]">history</span>Mostrando el historial completo de esta estación (puede incluir sesiones anteriores)</span>
+       <button type="button" id="btnSoloSesionActual" class="underline">Ver solo la sesión actual</button>`
+    : `<span class="flex items-center gap-space-xs"><span class="material-symbols-outlined text-[18px]">schedule</span>Mostrando solo la sesión que empezó ${Core.hace(sesionInicio)}</span>
+       <button type="button" id="btnHistorialCompleto" class="underline">Ver historial completo</button>`;
+  const btn = document.getElementById("btnSoloSesionActual") || document.getElementById("btnHistorialCompleto");
+  btn.addEventListener("click", () => {
+    mostrandoHistorialCompleto = !mostrandoHistorialCompleto;
+    renderizar();
+  });
+}
+
 function renderizar() {
   if (!estacionId) return;
   renderizarCabecera();
+  actualizarBannerSesion();
 
   const datos = Core.estaciones.get(estacionId);
-  const eventos = datos?.eventos || [];
+  const eventos = (datos?.eventos || []).filter(dentroDeLaSesionActual);
 
-  statPendientes.textContent = datos?.pendientes || 0;
+  statPendientes.textContent = eventos.filter((e) => !e.veredicto && e.alerta_id != null).length;
   statTranscripciones.textContent = eventos.filter((e) => e.tipo === "transcripcion").length;
   statGestos.textContent = eventos.filter((e) => e.tipo === "alerta_postura" || e.tipo === "alerta_expresion").length;
   statLenguaje.textContent = eventos.filter((e) => e.tipo === "alerta_lenguaje").length;
@@ -77,5 +128,8 @@ function renderizar() {
 Core.onEvento((evento) => {
   if (evento.estacion_id === estacionId) renderizar();
 });
-Core.onListo(renderizar);
+Core.onListo(async () => {
+  await cargarSesion();
+  renderizar();
+});
 Core.iniciar(renderizar);

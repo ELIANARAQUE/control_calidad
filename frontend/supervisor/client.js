@@ -24,7 +24,10 @@ const TIPOS_CRITICOS = new Set(["alerta_lenguaje", "alerta_postura", "alerta_exp
 const MAX_EVENTOS_TIMELINE = 60;
 
 let filtroBusqueda = "";
-let filtroVista = "todas"; // todas | pendientes | conectadas | desconectadas
+// El monitoreo en tiempo real es lo prioritario: por defecto solo se muestran las camaras
+// conectadas ahora mismo, no las desconectadas (que solo sirven para revisar historial y ya
+// tienen su propio filtro/pagina para eso).
+let filtroVista = "conectadas"; // todas | pendientes | conectadas | desconectadas
 let filtroTimeline = "todos";
 let capacidadMaxima = null;
 
@@ -57,7 +60,6 @@ function renderizarKPIs() {
   contadorFiltroConectadas.textContent = activas.length;
   contadorFiltroDesconectadas.textContent = estaciones.size - activas.length;
 
-  vacioEl.classList.toggle("oculto", estaciones.size > 0);
   contadorTerminalesEl.textContent = `${activas.length} puesto${activas.length === 1 ? "" : "s"}`;
 }
 
@@ -80,9 +82,19 @@ function estacionesFiltradas() {
     });
 }
 
+const MENSAJES_VACIO = {
+  todas: "Todavía no se ha conectado ninguna estación.",
+  pendientes: "Ninguna estación tiene alertas pendientes por revisar.",
+  conectadas: "No hay cámaras conectadas en este momento.",
+  desconectadas: "No hay estaciones desconectadas en el historial.",
+};
+
 function renderizarGrid() {
   gridEstacionesEl.innerHTML = "";
   const filas = estacionesFiltradas();
+
+  vacioEl.textContent = MENSAJES_VACIO[filtroVista] || MENSAJES_VACIO.todas;
+  vacioEl.classList.toggle("oculto", filas.length > 0);
 
   for (const [id, datos] of filas) {
     const nombre = datos.empleado || "Sin identificar";
@@ -188,7 +200,7 @@ document.querySelectorAll(".filtro-vista").forEach((btn) => {
     renderizarGrid();
   });
 });
-document.querySelector('.filtro-vista[data-filtro="todas"]').classList.add("activo");
+document.querySelector('.filtro-vista[data-filtro="conectadas"]').classList.add("activo");
 
 document.querySelectorAll(".filtro-timeline").forEach((btn) => {
   btn.addEventListener("click", () => {

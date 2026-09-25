@@ -11,7 +11,13 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.core.auth import requerir_admin
-from app.core.db import guardar_opciones, listar_eventos_recientes, listar_trabajadores_para_informe, obtener_opciones
+from app.core.db import (
+    guardar_opciones,
+    listar_eventos_recientes,
+    listar_trabajadores_para_informe,
+    obtener_opciones,
+    obtener_ultima_sesion,
+)
 from app.core.state import config_tiempo_real, gestor_estaciones, notificador_estaciones
 from app.services.informes.reporte import generar_reporte_trabajador_xlsx
 from app.services.stt.lenguaje import NIVELES_SENSIBILIDAD
@@ -63,6 +69,17 @@ async def eventos_recientes(_admin: str = Depends(requerir_admin)) -> list[dict]
     panel reconstruya su feed en memoria al cargar una pagina, sin depender de haber estado
     conectado por WebSocket desde antes."""
     return listar_eventos_recientes()
+
+
+@router.get("/estaciones/{estacion_id}/sesion")
+async def sesion_estacion(estacion_id: str, _admin: str = Depends(requerir_admin)) -> dict:
+    """Inicio (y fin, si aplica) de la sesion mas reciente de una estacion, para que el
+    centro de control de una sola estacion pueda mostrar solo la actividad de ahora y no
+    mezclarla con sesiones viejas de dias/horas anteriores bajo el mismo estacion_id."""
+    sesion = obtener_ultima_sesion(estacion_id)
+    if sesion is None:
+        raise HTTPException(status_code=404, detail="Esta estación no tiene sesiones registradas")
+    return sesion
 
 
 @router.get("/estaciones/{estacion_id}/snapshot.jpg")
