@@ -73,27 +73,27 @@ checkHabeasData.addEventListener("change", () => {
 // piden y se pintan. Las <option> que trae el HTML por defecto quedan como respaldo si esta
 // llamada falla (servidor lento al arrancar, etc.) para no dejar los select vacios. ---
 async function cargarOpcionesSedeModulo() {
+  // Las opciones las administra el supervisor (CRUD en su panel). Si una lista viene vacia o
+  // el servidor no responde, se dice claramente en el select en vez de dejar "Cargando…".
+  const pintar = (select, valores, clave, vacio) => {
+    const escapar = (v) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    if (!valores.length) {
+      select.innerHTML = `<option value="">${vacio}</option>`;
+      return;
+    }
+    select.innerHTML = valores.map((v) => `<option value="${escapar(v)}">${escapar(v)}</option>`).join("");
+    const guardado = localStorage.getItem(clave);
+    if (guardado && valores.includes(guardado)) select.value = guardado;
+  };
   try {
     const resp = await fetch("/api/config/opciones");
-    if (!resp.ok) return;
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
     const datos = await resp.json();
-    if (Array.isArray(datos.sede) && datos.sede.length) {
-      const valorPrevio = sedeSelect.value;
-      sedeSelect.innerHTML = datos.sede.map((v) => `<option value="${v}">${v}</option>`).join("");
-      if (datos.sede.includes(valorPrevio)) sedeSelect.value = valorPrevio;
-    }
-    if (Array.isArray(datos.modulo) && datos.modulo.length) {
-      const valorPrevio = moduloSelect.value;
-      moduloSelect.innerHTML = datos.modulo.map((v) => `<option value="${v}">${v}</option>`).join("");
-      if (datos.modulo.includes(valorPrevio)) moduloSelect.value = valorPrevio;
-    }
-    // Reaplica lo guardado en localStorage (si sigue existiendo en la lista actualizada)
-    const sedeGuardada = localStorage.getItem(CLAVE_SEDE);
-    const moduloGuardado = localStorage.getItem(CLAVE_MODULO);
-    if (sedeGuardada && datos.sede?.includes(sedeGuardada)) sedeSelect.value = sedeGuardada;
-    if (moduloGuardado && datos.modulo?.includes(moduloGuardado)) moduloSelect.value = moduloGuardado;
+    pintar(sedeSelect, datos.sede || [], CLAVE_SEDE, "Sin sedes configuradas (avisa al administrador)");
+    pintar(moduloSelect, datos.modulo || [], CLAVE_MODULO, "Sin módulos configurados (avisa al administrador)");
   } catch (err) {
-    // se quedan las opciones por defecto del HTML
+    pintar(sedeSelect, [], CLAVE_SEDE, "No se pudieron cargar las sedes");
+    pintar(moduloSelect, [], CLAVE_MODULO, "No se pudieron cargar los módulos");
   }
 }
 
@@ -262,6 +262,13 @@ async function iniciarMonitoreo({ esReconexion = false } = {}) {
   const nombreEmpleado = sessionStorage.getItem(CLAVE_SESION_NOMBRE);
   if (!token || !nombreEmpleado) {
     window.location.href = "/login/";
+    return;
+  }
+  if (!sedeSelect.value || !moduloSelect.value) {
+    mostrarError({
+      mensaje: "Debes elegir una sede y un módulo para iniciar el monitoreo.",
+      sugerencia: "Si la lista está vacía, pide al administrador que configure las opciones de Sede / Módulo.",
+    });
     return;
   }
   if (!checkHabeasData.checked) {

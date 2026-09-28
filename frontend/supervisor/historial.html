@@ -165,27 +165,50 @@ tailwind.config = {
     </section>
 
     <section class="px-space-lg pb-space-lg">
-      <div class="bg-surface-container-lowest rounded-xl shadow-md p-space-md flex flex-col gap-space-sm max-w-2xl">
+      <div class="bg-surface-container-lowest rounded-xl shadow-md p-space-md flex flex-col gap-space-md">
         <div class="flex items-center gap-space-sm">
           <div class="w-8 h-8 rounded-lg bg-primary-container text-white flex items-center justify-center">
             <span class="material-symbols-outlined text-[20px]">tune</span>
           </div>
           <div>
             <h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Opciones de Sede / Módulo</h3>
-            <p class="font-body-sm text-body-sm text-on-surface-variant">Lo que ve el empleado al iniciar sesión. Una opción por línea.</p>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">Lo que el empleado elige al iniciar su monitoreo. Editar o eliminar una opción solo afecta a las sesiones nuevas: las ya registradas conservan el nombre con el que se guardaron.</p>
           </div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md mt-space-xs">
-          <div class="flex flex-col gap-1">
-            <label class="font-label-sm text-label-sm text-on-surface-variant" for="opcionesSede">Sede / modalidad</label>
-            <textarea class="w-full bg-surface-container-low rounded-lg p-space-sm font-body-sm text-body-sm text-on-surface focus:outline-none" id="opcionesSede" rows="4"></textarea>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-space-md">
+          <div class="crud-opciones flex flex-col gap-space-sm" data-tipo="sede">
+            <h4 class="font-label-md text-label-md text-on-surface font-bold uppercase tracking-wider">Sede / modalidad</h4>
+            <table class="w-full text-left">
+              <thead>
+                <tr class="font-label-sm text-label-sm text-on-surface-variant border-b border-outline-variant">
+                  <th class="py-space-xs pr-space-sm">Nombre</th>
+                  <th class="py-space-xs text-right w-40">Acciones</th>
+                </tr>
+              </thead>
+              <tbody class="font-body-md text-body-md text-on-surface"></tbody>
+            </table>
+            <form class="form-nueva-opcion flex gap-space-xs">
+              <input class="flex-1 bg-surface-container-low border border-outline-variant rounded-lg px-space-sm py-space-xs font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary" maxlength="80" placeholder="Nueva sede o modalidad" required />
+              <button class="px-space-md py-space-xs rounded-lg font-label-md text-label-md font-semibold bg-primary text-white flex items-center gap-1" type="submit"><span class="material-symbols-outlined text-[16px]">add</span>Añadir</button>
+            </form>
           </div>
-          <div class="flex flex-col gap-1">
-            <label class="font-label-sm text-label-sm text-on-surface-variant" for="opcionesModulo">Módulo / ventanilla</label>
-            <textarea class="w-full bg-surface-container-low rounded-lg p-space-sm font-body-sm text-body-sm text-on-surface focus:outline-none" id="opcionesModulo" rows="4"></textarea>
+          <div class="crud-opciones flex flex-col gap-space-sm" data-tipo="modulo">
+            <h4 class="font-label-md text-label-md text-on-surface font-bold uppercase tracking-wider">Módulo / ventanilla</h4>
+            <table class="w-full text-left">
+              <thead>
+                <tr class="font-label-sm text-label-sm text-on-surface-variant border-b border-outline-variant">
+                  <th class="py-space-xs pr-space-sm">Nombre</th>
+                  <th class="py-space-xs text-right w-40">Acciones</th>
+                </tr>
+              </thead>
+              <tbody class="font-body-md text-body-md text-on-surface"></tbody>
+            </table>
+            <form class="form-nueva-opcion flex gap-space-xs">
+              <input class="flex-1 bg-surface-container-low border border-outline-variant rounded-lg px-space-sm py-space-xs font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary" maxlength="80" placeholder="Nuevo módulo o ventanilla" required />
+              <button class="px-space-md py-space-xs rounded-lg font-label-md text-label-md font-semibold bg-primary text-white flex items-center gap-1" type="submit"><span class="material-symbols-outlined text-[16px]">add</span>Añadir</button>
+            </form>
           </div>
         </div>
-        <button class="self-start px-space-md py-space-xs rounded-lg font-label-md text-label-md font-semibold bg-primary text-white" id="btnGuardarOpciones" type="button">Guardar opciones</button>
       </div>
     </section>
 
@@ -235,6 +258,6 @@ tailwind.config = {
 <div class="oculto fixed bottom-4 right-4 z-[100] bg-on-surface text-white px-space-md py-space-sm rounded-lg shadow-lg font-body-sm text-body-sm" id="toast"></div>
 
 <script src="core.js?v=30"></script>
-<script src="historial.js?v=31"></script>
+<script src="historial.js?v=32"></script>
 </body>
 </html>

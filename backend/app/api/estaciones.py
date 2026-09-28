@@ -12,8 +12,12 @@ from pydantic import BaseModel
 
 from app.core.auth import requerir_admin, requerir_sesion
 from app.core.db import (
+    ErrorOpcion,
+    crear_opcion,
+    editar_opcion,
+    eliminar_opcion,
     guardar_diccionario_lenguaje,
-    guardar_opciones,
+    listar_opciones_detalle,
     historial_conexiones,
     obtener_diccionario_lenguaje,
     listar_eventos_recientes,
@@ -36,17 +40,47 @@ async def obtener_opciones_configurables() -> dict:
     return await obtener_opciones()
 
 
-class ListaOpciones(BaseModel):
+# --- CRUD de opciones de sede/modulo (solo admin) ---
+
+@router.get("/config/opciones/detalle")
+async def opciones_detalle(_admin: str = Depends(requerir_admin)) -> list[dict]:
+    return await listar_opciones_detalle()
+
+
+class NuevaOpcion(BaseModel):
     tipo: str
-    valores: list[str]
+    valor: str
 
 
-@router.post("/config/opciones")
-async def actualizar_opciones_configurables(cuerpo: ListaOpciones, _admin: str = Depends(requerir_admin)) -> dict:
+class EdicionOpcion(BaseModel):
+    valor: str
+
+
+@router.post("/config/opciones/items")
+async def crear_opcion_endpoint(cuerpo: NuevaOpcion, _admin: str = Depends(requerir_admin)) -> dict:
     if cuerpo.tipo not in ("sede", "modulo"):
         raise HTTPException(status_code=400, detail="tipo debe ser 'sede' o 'modulo'")
-    await guardar_opciones(cuerpo.tipo, cuerpo.valores)
-    return await obtener_opciones()
+    try:
+        return await crear_opcion(cuerpo.tipo, cuerpo.valor)
+    except ErrorOpcion as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+
+
+@router.put("/config/opciones/items/{opcion_id}")
+async def editar_opcion_endpoint(opcion_id: int, cuerpo: EdicionOpcion, _admin: str = Depends(requerir_admin)) -> dict:
+    try:
+        return await editar_opcion(opcion_id, cuerpo.valor)
+    except ErrorOpcion as err:
+        raise HTTPException(status_code=400, detail=str(err)) from err
+    except LookupError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+
+
+@router.delete("/config/opciones/items/{opcion_id}")
+async def eliminar_opcion_endpoint(opcion_id: int, _admin: str = Depends(requerir_admin)) -> dict:
+    if not await eliminar_opcion(opcion_id):
+        raise HTTPException(status_code=404, detail="La opción no existe")
+    return {"eliminada": opcion_id}
 
 
 @router.get("/estaciones")

@@ -199,26 +199,79 @@ def _obtener_opciones_sync() -> dict[str, list[str]]:
 
 async def obtener_opciones() -> dict[str, list[str]]:
     """Opciones de 'sede/modalidad' y 'modulo/ventanilla' que el empleado ve en su login,
-    editables por el supervisor sin tocar codigo (ver POST /api/config/opciones)."""
+    administradas por el supervisor desde el CRUD de "Historial y Reportes"."""
     return await en_hilo(_obtener_opciones_sync)
 
 
-def _guardar_opciones_sync(tipo: str, valores: list[str]) -> None:
+# CRUD por opcion (antes el panel reemplazaba la lista COMPLETA de golpe: guardar con el cuadro
+# de texto vacio borraba todas las opciones). Las sesiones ya registradas guardan la sede y el
+# modulo como TEXTO en `eventos_conexion`, asi que editar o eliminar una opcion solo afecta a
+# las sesiones nuevas, nunca a los registros anteriores.
+
+class ErrorOpcion(Exception):
+    """Validacion del CRUD de opciones (vacia, duplicada, inexistente) -> 400/404 en la API."""
+
+
+def _listar_opciones_detalle_sync() -> list[dict]:
+    return (
+        obtener_supabase()
+        .table("opciones_configurables")
+        .select("id, tipo, valor, orden")
+        .order("tipo")
+        .order("orden")
+        .execute()
+    ).data
+
+
+async def listar_opciones_detalle() -> list[dict]:
+    return await en_hilo(_listar_opciones_detalle_sync)
+
+
+def _existe_valor(supabase, tipo: str, valor: str, excepto_id: int | None = None) -> bool:
+    filas = supabase.table("opciones_configurables").select("id, valor").eq("tipo", tipo).execute().data
+    return any(f["valor"].strip().lower() == valor.lower() and f["id"] != excepto_id for f in filas)
+
+
+def _crear_opcion_sync(tipo: str, valor: str) -> dict:
     supabase = obtener_supabase()
-    supabase.table("opciones_configurables").delete().eq("tipo", tipo).execute()
-    filas = [
-        {"tipo": tipo, "valor": valor.strip(), "orden": orden}
-        for orden, valor in enumerate(valores)
-        if valor.strip()
-    ]
-    if filas:
-        supabase.table("opciones_configurables").insert(filas).execute()
+    valor = " ".join(valor.split())
+    if not valor:
+        raise ErrorOpcion("El nombre de la opción no puede estar vacío")
+    if _existe_valor(supabase, tipo, valor):
+        raise ErrorOpcion(f'Ya existe la opción "{valor}"')
+    filas = supabase.table("opciones_configurables").select("orden").eq("tipo", tipo).execute().data
+    orden = max((f["orden"] for f in filas), default=-1) + 1
+    return supabase.table("opciones_configurables").insert({"tipo": tipo, "valor": valor, "orden": orden}).execute().data[0]
 
 
-async def guardar_opciones(tipo: str, valores: list[str]) -> None:
-    """Reemplaza por completo la lista de un tipo ('sede' o 'modulo') -asi el supervisor puede
-    agregar, borrar o reordenar simplemente mandando la lista final desde el panel."""
-    await en_hilo(_guardar_opciones_sync, tipo, valores)
+async def crear_opcion(tipo: str, valor: str) -> dict:
+    return await en_hilo(_crear_opcion_sync, tipo, valor)
+
+
+def _editar_opcion_sync(opcion_id: int, valor: str) -> dict:
+    supabase = obtener_supabase()
+    valor = " ".join(valor.split())
+    if not valor:
+        raise ErrorOpcion("El nombre de la opción no puede estar vacío")
+    actual = supabase.table("opciones_configurables").select("id, tipo").eq("id", opcion_id).limit(1).execute().data
+    if not actual:
+        raise LookupError("La opción no existe")
+    if _existe_valor(supabase, actual[0]["tipo"], valor, excepto_id=opcion_id):
+        raise ErrorOpcion(f'Ya existe la opción "{valor}"')
+    return supabase.table("opciones_configurables").update({"valor": valor}).eq("id", opcion_id).execute().data[0]
+
+
+async def editar_opcion(opcion_id: int, valor: str) -> dict:
+    return await en_hilo(_editar_opcion_sync, opcion_id, valor)
+
+
+def _eliminar_opcion_sync(opcion_id: int) -> bool:
+    respuesta = obtener_supabase().table("opciones_configurables").delete().eq("id", opcion_id).execute()
+    return len(respuesta.data) > 0
+
+
+async def eliminar_opcion(opcion_id: int) -> bool:
+    return await en_hilo(_eliminar_opcion_sync, opcion_id)
 
 
 # ============================================================================
