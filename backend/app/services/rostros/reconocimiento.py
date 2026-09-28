@@ -46,7 +46,11 @@ def generar_embedding(imagen_bgr: np.ndarray) -> list[float] | None:
 
     if not resultados:
         return None
-    return resultados[0]["embedding"]
+    # Si aparece mas de una cara (ej. alguien detras), se usa la MAS GRANDE: es la de la persona
+    # que esta dentro del ovalo, frente a la camara. Antes se tomaba la primera que devolviera
+    # el detector, que podia ser la de otra persona.
+    principal = max(resultados, key=lambda r: r.get("facial_area", {}).get("w", 0) * r.get("facial_area", {}).get("h", 0))
+    return principal["embedding"]
 
 
 def desvio_horizontal_nariz(imagen_bgr: np.ndarray) -> float | None:
@@ -59,7 +63,8 @@ def desvio_horizontal_nariz(imagen_bgr: np.ndarray) -> float | None:
         return None
     if not caras:
         return None
-    area = caras[0].get("facial_area", {})
+    principal = max(caras, key=lambda c: c.get("facial_area", {}).get("w", 0) * c.get("facial_area", {}).get("h", 0))
+    area = principal.get("facial_area", {})
     ojo_a, ojo_b, nariz = area.get("left_eye"), area.get("right_eye"), area.get("nose")
     if not (ojo_a and ojo_b and nariz):
         return None
