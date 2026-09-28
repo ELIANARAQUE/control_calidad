@@ -216,5 +216,4 @@ document.getElementById("btnGuardarLenguaje").addEventListener("click", async ()
 Core.iniciar(() => {
   cargarTrabajadores();
   cargarOpciones();
-  cargarLenguaje();
 });

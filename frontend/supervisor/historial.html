@@ -212,7 +212,8 @@ tailwind.config = {
       </div>
     </section>
 
-    <section class="px-space-lg pb-space-lg">
+    <!-- Oculto a pedido: el diccionario se sigue usando para detectar, y se administra en Supabase (tabla lenguaje_inapropiado). -->
+    <section class="oculto px-space-lg pb-space-lg">
       <div class="bg-surface-container-lowest rounded-xl shadow-md p-space-md flex flex-col gap-space-sm">
         <div class="flex items-center gap-space-sm">
           <div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
@@ -258,6 +259,6 @@ tailwind.config = {
 <div class="oculto fixed bottom-4 right-4 z-[100] bg-on-surface text-white px-space-md py-space-sm rounded-lg shadow-lg font-body-sm text-body-sm" id="toast"></div>
 
 <script src="core.js?v=30"></script>
-<script src="historial.js?v=32"></script>
+<script src="historial.js?v=33"></script>
 </body>
 </html>
