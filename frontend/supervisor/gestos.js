@@ -36,7 +36,7 @@ function actualizarBannerFoco() {
 }
 
 // Pestañas: "negativas" (expresion negativa, ausencia y postura vieja; se califican con fue
-// real / falsa alarma) y "positivas" (felicidad >= 97%; informativas, solo se eliminan).
+// real / falsa alarma) y "positivas" (felicidad >= 60%; informativas, solo se eliminan).
 const TIPOS_POR_GRUPO = {
   negativas: new Set(["alerta_expresion", "alerta_ausencia", "alerta_postura"]),
   positivas: new Set(["alerta_expresion_positiva"]),

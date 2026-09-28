@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     emocion_umbral_critico: float = 0.75
     # Expresiones positivas: felicidad promediada por encima de este valor se registra (solo
     # informativa: no se califica como real/falsa, solo se puede eliminar).
-    emocion_umbral_positivo: float = 0.97
+    emocion_umbral_positivo: float = 0.60
     emocion_positiva_cooldown_segundos: float = 30.0
     emocion_cooldown_segundos: float = 10.0  # tiempo minimo entre alertas repetidas de la misma estacion
 

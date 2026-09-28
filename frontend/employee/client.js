@@ -579,11 +579,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   checkHabeasData.checked = yaAceptoHabeasData;
   actualizarBotonIniciar();
 
-  if (yaAceptoHabeasData) {
-    // Arranque en un solo paso (equipo del programa de escritorio, consentimiento ya dado
-    // en una sesion anterior en este mismo equipo).
-    iniciarMonitoreo();
-  } else {
-    setEstado("Acepta el aviso de datos para iniciar la sesión de monitoreo");
-  }
+  // El monitoreo NUNCA arranca solo: el empleado debe presionar "Iniciar sesión de monitoreo"
+  // (aunque ya haya aceptado el aviso de datos en una sesion anterior).
+  setEstado("Presiona \"Iniciar sesión de monitoreo\" para comenzar");
 });
