@@ -49,6 +49,28 @@ def generar_embedding(imagen_bgr: np.ndarray) -> list[float] | None:
     return resultados[0]["embedding"]
 
 
+def desvio_horizontal_nariz(imagen_bgr: np.ndarray) -> float | None:
+    """Que tan girada esta la cabeza: desplazamiento horizontal de la nariz respecto al punto
+    medio entre los ojos, medido en "distancias entre ojos". ~0 = de frente; cerca de +-0.3 o
+    mas = perfil. Devuelve None si no se pudo ubicar la cara o sus puntos."""
+    try:
+        caras = DeepFace.extract_faces(img_path=imagen_bgr, detector_backend=_DETECTOR, enforce_detection=True)
+    except ValueError:
+        return None
+    if not caras:
+        return None
+    area = caras[0].get("facial_area", {})
+    ojo_a, ojo_b, nariz = area.get("left_eye"), area.get("right_eye"), area.get("nose")
+    if not (ojo_a and ojo_b and nariz):
+        return None
+    distancia_ojos = abs(ojo_a[0] - ojo_b[0])
+    if distancia_ojos < 1:
+        # Perfil muy marcado: los dos ojos quedan casi en el mismo punto horizontal.
+        return 1.0
+    medio = (ojo_a[0] + ojo_b[0]) / 2
+    return (nariz[0] - medio) / distancia_ojos
+
+
 def _distancia_coseno(a: list[float], b: list[float]) -> float:
     va, vb = np.array(a), np.array(b)
     return float(1 - np.dot(va, vb) / (np.linalg.norm(va) * np.linalg.norm(vb)))

@@ -75,6 +75,9 @@ app.mount("/empleado", StaticFiles(directory="../frontend/employee", html=True),
 app.mount("/supervisor", StaticFiles(directory="../frontend/supervisor", html=True), name="supervisor-ui")
 app.mount("/registro", StaticFiles(directory="../frontend/registro", html=True), name="registro")
 app.mount("/login", StaticFiles(directory="../frontend/login", html=True), name="login")
+# Recursos compartidos (guia de camara con ovalo + su modelo de rostro): publicos, porque los
+# usan el login y el registro antes de que exista ninguna sesion.
+app.mount("/comun", StaticFiles(directory="../frontend/comun"), name="comun")
 
 
 @app.get("/")

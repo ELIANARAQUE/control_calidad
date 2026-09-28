@@ -50,6 +50,22 @@ def descifrar(texto_cifrado: str) -> str:
         raise ValueError("No se pudo descifrar: dato corrupto o FERNET_KEY incorrecta") from err
 
 
+def cifrar_bytes(datos: bytes) -> bytes:
+    """Cifra un archivo binario completo (ej. una foto de rostro) con la misma FERNET_KEY."""
+    return _fernet().encrypt(datos)
+
+
+def descifrar_bytes(datos: bytes) -> bytes:
+    """Descifra lo producido por `cifrar_bytes`. Las fotos guardadas ANTES de activar el
+    cifrado estan en JPEG plano: esas se devuelven tal cual para que sigan abriendo."""
+    if datos[:3] == b"\xff\xd8\xff":  # firma de un JPEG sin cifrar
+        return datos
+    try:
+        return _fernet().decrypt(datos)
+    except InvalidToken as err:
+        raise ValueError("No se pudo descifrar la imagen: archivo corrupto o FERNET_KEY incorrecta") from err
+
+
 def hash_busqueda(texto_plano: str) -> str:
     """Hash determinista (no reversible) para poder buscar/validar unicidad de un campo
     cifrado (correo, numero de documento) sin descifrar toda la tabla. Se normaliza a

@@ -131,14 +131,19 @@
 
     <input class="oculto" type="file" id="inputArchivoFoto" accept="image/*" />
 
-    <div class="oculto relative rounded-xl overflow-hidden bg-[#0b1c30] aspect-video" id="wrapCamaraRegistro">
-      <video id="videoRegistro" class="w-full h-full object-cover" autoplay playsinline muted></video>
+    <div class="oculto flex flex-col gap-2" id="wrapCamaraRegistro">
+      <div class="relative rounded-xl overflow-hidden bg-[#0b1c30] aspect-[3/4] max-h-[55vh] mx-auto w-full">
+        <!-- Espejo (scaleX(-1)) solo visual, como un selfie: la guia analiza el video original. -->
+        <video id="videoRegistro" class="absolute inset-0 w-full h-full object-cover -scale-x-100" autoplay playsinline muted></video>
+        <canvas id="guiaRegistro" class="absolute inset-0 w-full h-full object-cover -scale-x-100 pointer-events-none"></canvas>
+      </div>
+      <p class="text-sm font-semibold text-center rounded-lg px-3 py-2 bg-[#eef1f8] text-[#0f1c30]" id="mensajeGuiaRegistro">Cargando guía de cámara…</p>
       <canvas id="canvasRegistro" class="hidden"></canvas>
     </div>
 
     <div class="flex gap-3">
       <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#eef1f8] text-[#0f1c30]" id="btnCancelarFoto" type="button">Cancelar</button>
-      <button class="oculto flex-1 py-2.5 rounded-lg font-semibold bg-[#10b981] text-[#00220f]" id="btnTomarFoto" type="button">Tomar foto</button>
+      <button class="oculto flex-1 py-2.5 rounded-lg font-semibold bg-[#10b981] text-[#00220f] disabled:opacity-40 disabled:cursor-not-allowed" id="btnTomarFoto" type="button" disabled>Tomar foto</button>
     </div>
   </div>
 </div>
@@ -178,6 +183,6 @@
   </div>
 </div>
 
-<script src="client.js?v=3"></script>
+<script src="client.js?v=4"></script>
 </body>
 </html>

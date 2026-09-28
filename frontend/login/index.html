@@ -60,17 +60,20 @@
     </h2>
     <p class="text-sm text-[#586174]">Activa tu cámara y mira de frente. Comprobamos que el rostro coincida con el de tu registro.</p>
 
-    <div class="relative rounded-xl overflow-hidden bg-[#0b1c30] aspect-video">
-      <video id="video" class="w-full h-full object-cover" autoplay playsinline muted></video>
+    <div class="relative rounded-xl overflow-hidden bg-[#0b1c30] aspect-[3/4] max-h-[55vh] mx-auto w-full">
+      <!-- Espejo solo visual (como un selfie); la guia analiza el video original. -->
+      <video id="video" class="absolute inset-0 w-full h-full object-cover -scale-x-100" autoplay playsinline muted></video>
+      <canvas id="guiaLogin" class="absolute inset-0 w-full h-full object-cover -scale-x-100 pointer-events-none"></canvas>
       <canvas id="canvas" class="hidden"></canvas>
     </div>
+    <p class="text-sm font-semibold text-center rounded-lg px-3 py-2 bg-[#eef1f8] text-[#0f1c30]" id="mensajeGuiaLogin">Cargando guía de cámara…</p>
 
     <p class="oculto text-sm text-red-600" id="errorRostro"></p>
     <p class="oculto text-sm text-[#0f9d68] font-semibold" id="okRostro"></p>
 
     <div class="flex gap-3">
       <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#eef1f8] text-[#0f1c30]" id="btnCancelarRostro" type="button">Cancelar</button>
-      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#10b981] text-[#00220f] flex items-center justify-center gap-2" id="btnCapturarRostro" type="button">
+      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#10b981] text-[#00220f] flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed" id="btnCapturarRostro" type="button" disabled>
         <span class="material-symbols-outlined text-[18px]">camera</span> Verificar
       </button>
     </div>
@@ -107,10 +110,37 @@ function limpiarCampos() {
 }
 window.addEventListener("pageshow", limpiarCampos);
 
+// Guia con ovalo (ver /comun/guia-rostro.js): "Verificar" solo se habilita con la cara de
+// frente y dentro del ovalo.
+const mensajeGuia = document.getElementById("mensajeGuiaLogin");
+const btnVerificarRostro = document.getElementById("btnCapturarRostro");
+let guia = null;
+let verificando = false;
+
+function mostrarMensajeGuia(texto, valido) {
+  mensajeGuia.textContent = texto;
+  mensajeGuia.className =
+    "text-sm font-semibold text-center rounded-lg px-3 py-2 " +
+    (valido ? "bg-[#d1fae5] text-[#065f46]" : "bg-[#eef1f8] text-[#0f1c30]");
+}
+
 async function abrirCamara() {
+  btnVerificarRostro.disabled = true;
+  mostrarMensajeGuia("Cargando guía de cámara…", false);
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
     video.srcObject = stream;
+    const { crearGuiaEnVivo } = await import("/comun/guia-rostro.js");
+    guia ??= await crearGuiaEnVivo({
+      video,
+      canvas: document.getElementById("guiaLogin"),
+      alCambiar: ({ valido, mensaje }) => {
+        if (!verificando) btnVerificarRostro.disabled = !valido;
+        mostrarMensajeGuia(mensaje, valido);
+      },
+    });
+    guia.setAngulo("frontal");
+    guia.iniciar();
   } catch (err) {
     errorRostro.textContent = "No se pudo acceder a la cámara: " + err.message;
     errorRostro.classList.remove("oculto");
@@ -118,6 +148,7 @@ async function abrirCamara() {
 }
 
 function cerrarCamara() {
+  guia?.detener();
   stream?.getTracks().forEach((t) => t.stop());
   stream = null;
 }
@@ -153,7 +184,7 @@ document.getElementById("btnCancelarRostro").addEventListener("click", () => {
 });
 
 document.getElementById("btnCapturarRostro").addEventListener("click", async () => {
-  if (!stream || !datosSesionPendiente) return;
+  if (!stream || !datosSesionPendiente || btnVerificarRostro.disabled) return;
   errorRostro.classList.add("oculto");
 
   canvas.width = video.videoWidth;
@@ -169,6 +200,7 @@ document.getElementById("btnCapturarRostro").addEventListener("click", async () 
 
     const botonVerificar = document.getElementById("btnCapturarRostro");
     botonVerificar.disabled = true;
+    verificando = true;
     okRostro.textContent = "Analizando rostro, un momento…";
     okRostro.classList.remove("oculto");
     try {
@@ -188,7 +220,10 @@ document.getElementById("btnCapturarRostro").addEventListener("click", async () 
       errorRostro.textContent = err.message;
       errorRostro.classList.remove("oculto");
     } finally {
-      botonVerificar.disabled = false;
+      verificando = false;
+      // Se vuelve a exigir que la guia confirme la posicion antes de permitir otro intento.
+      botonVerificar.disabled = true;
+      guia?.setAngulo("frontal");
     }
   }, "image/jpeg", 0.92);
 });

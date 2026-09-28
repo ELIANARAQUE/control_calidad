@@ -19,8 +19,8 @@ const errorRegistro = document.getElementById("errorRegistro");
 const fotos = { frontal: null, izquierda: null, derecha: null };
 const INSTRUCCION_ANGULO = {
   frontal: "Foto FRONTAL: mira directo a la cámara, rostro completo y centrado.",
-  izquierda: "Foto LATERAL IZQUIERDA: gira la cabeza hacia tu izquierda (se ve tu perfil).",
-  derecha: "Foto LATERAL DERECHA: gira la cabeza hacia tu derecha (se ve tu perfil).",
+  izquierda: "Foto LATERAL IZQUIERDA: gira la cabeza hacia tu izquierda unos 45° (tres cuartos, no perfil completo).",
+  derecha: "Foto LATERAL DERECHA: gira la cabeza hacia tu derecha unos 45° (tres cuartos, no perfil completo).",
 };
 const TITULO_ANGULO = { frontal: "Foto frontal", izquierda: "Foto lateral izquierda", derecha: "Foto lateral derecha" };
 let anguloActual = "frontal";
@@ -96,40 +96,82 @@ function guardarFoto(blob) {
   cerrarModalFoto();
 }
 
+// Guia con ovalo (ver /comun/guia-rostro.js): el boton "Tomar foto" solo se habilita cuando la
+// cara esta dentro del ovalo y en el angulo pedido para esa foto.
+const mensajeGuia = document.getElementById("mensajeGuiaRegistro");
+const moduloGuia = import("/comun/guia-rostro.js");
+let guia = null;
+
+function mostrarMensajeGuia(texto, valido) {
+  mensajeGuia.textContent = texto;
+  mensajeGuia.className =
+    "text-sm font-semibold text-center rounded-lg px-3 py-2 " +
+    (valido ? "bg-[#d1fae5] text-[#065f46]" : "bg-[#eef1f8] text-[#0f1c30]");
+}
+
 function cerrarModalFoto() {
+  guia?.detener();
   streamRegistro?.getTracks().forEach((t) => t.stop());
   streamRegistro = null;
   wrapCamaraRegistro.classList.add("oculto");
   btnTomarFoto.classList.add("oculto");
+  btnTomarFoto.disabled = true;
   modalFoto.classList.add("oculto");
 }
 document.getElementById("btnCancelarFoto").addEventListener("click", cerrarModalFoto);
 
 document.getElementById("btnModoArchivo").addEventListener("click", () => {
+  guia?.detener();
   wrapCamaraRegistro.classList.add("oculto");
   btnTomarFoto.classList.add("oculto");
   inputArchivoFoto.click();
 });
 
-inputArchivoFoto.addEventListener("change", () => {
+inputArchivoFoto.addEventListener("change", async () => {
   const archivo = inputArchivoFoto.files[0];
   inputArchivoFoto.value = "";
   if (!archivo) return;
+  // Una foto subida tambien debe cumplir el angulo pedido (frontal / perfil izq. / perfil der.).
+  try {
+    const { validarImagen } = await moduloGuia;
+    const { valido, mensaje } = await validarImagen(archivo, anguloActual);
+    if (!valido) {
+      alert(`Esta foto no sirve como "${TITULO_ANGULO[anguloActual]}": ${mensaje}`);
+      return;
+    }
+  } catch (err) {
+    alert("No se pudo analizar la foto: " + err.message);
+    return;
+  }
   guardarFoto(archivo);
 });
 
 document.getElementById("btnModoCamara").addEventListener("click", async () => {
   wrapCamaraRegistro.classList.remove("oculto");
   btnTomarFoto.classList.remove("oculto");
+  btnTomarFoto.disabled = true;
+  mostrarMensajeGuia("Cargando guía de cámara…", false);
   try {
-    streamRegistro = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+    streamRegistro = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
     videoRegistro.srcObject = streamRegistro;
+    const { crearGuiaEnVivo } = await moduloGuia;
+    guia ??= await crearGuiaEnVivo({
+      video: videoRegistro,
+      canvas: document.getElementById("guiaRegistro"),
+      alCambiar: ({ valido, mensaje }) => {
+        btnTomarFoto.disabled = !valido;
+        mostrarMensajeGuia(mensaje, valido);
+      },
+    });
+    guia.setAngulo(anguloActual);
+    guia.iniciar();
   } catch (err) {
-    alert("No se pudo acceder a la cámara: " + err.message);
+    mostrarMensajeGuia("No se pudo iniciar la cámara o la guía: " + err.message, false);
   }
 });
 
 btnTomarFoto.addEventListener("click", () => {
+  if (btnTomarFoto.disabled) return;
   canvasRegistro.width = videoRegistro.videoWidth;
   canvasRegistro.height = videoRegistro.videoHeight;
   canvasRegistro.getContext("2d").drawImage(videoRegistro, 0, 0);

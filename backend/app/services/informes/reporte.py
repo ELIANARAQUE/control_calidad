@@ -12,6 +12,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from app.core.db import RUTA_CAPTURAS, obtener_datos_reporte_trabajador
+from app.core.seguridad import descifrar_bytes
 
 _ALTO_FILA_CON_FOTO = 58  # puntos: suficiente para una miniatura de ~70px de alto
 _ANCHO_FOTO_COL_PX = 70
@@ -180,7 +181,7 @@ async def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
             ruta_absoluta = (RUTA_CAPTURAS / captura_path).resolve()
             if RUTA_CAPTURAS.resolve() in ruta_absoluta.parents and ruta_absoluta.is_file():
                 try:
-                    imagen = ImagenExcel(str(ruta_absoluta))
+                    imagen = ImagenExcel(io.BytesIO(descifrar_bytes(ruta_absoluta.read_bytes())))
                     imagen.height = 70
                     imagen.width = 70
                     ws2.add_image(imagen, f"F{i}")

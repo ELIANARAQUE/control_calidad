@@ -8,6 +8,7 @@ import asyncio
 import logging
 import time
 import uuid
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -15,6 +16,7 @@ import av
 import numpy as np
 
 from app.core.config import settings
+from app.core.seguridad import cifrar_bytes
 from app.core.db import RUTA_CAPTURAS, registrar_alerta, registrar_emocion, registrar_transcripcion
 from app.core.state import bus_alertas, config_tiempo_real, gestor_estaciones, nuevo_evento
 from app.services.emocion.detector import EMOCIONES_NEGATIVAS, DetectorEmocion, recortar_cara
@@ -81,8 +83,10 @@ def _guardar_captura_bytes(estacion_id: str, tipo: str, jpeg_bytes: bytes) -> st
         carpeta = RUTA_CAPTURAS / estacion_id
         carpeta.mkdir(parents=True, exist_ok=True)
         marca = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-        nombre = f"{tipo}_{marca}_{uuid.uuid4().hex[:6]}.jpg"
-        (carpeta / nombre).write_bytes(jpeg_bytes)
+        # Foto de la cara de un empleado = dato sensible: se guarda cifrada en disco y solo se
+        # descifra al servirla a un admin autenticado o al armar su reporte.
+        nombre = f"{tipo}_{marca}_{uuid.uuid4().hex[:6]}.jpg.enc"
+        (carpeta / nombre).write_bytes(cifrar_bytes(jpeg_bytes))
         return f"{estacion_id}/{nombre}"
     except Exception:
         logger.exception("No se pudo escribir captura de alerta en disco para estacion %s", estacion_id)
@@ -102,6 +106,7 @@ async def consumir_video(track, estacion_id: str) -> None:
     # alertar, para no disparar por un solo frame ruidoso.
     racha_emocion = 0
     ultimo_ts_alerta_emocion = 0.0
+    ventana_emociones: deque[dict[str, float]] = deque(maxlen=settings.emocion_ventana_frames)
 
     # Deteccion de ausencia: si la camara deja de ver a alguien por mas de
     # `ausencia_umbral_segundos` seguidos, se avisa una vez (no se repite hasta que la persona
@@ -154,6 +159,7 @@ async def consumir_video(track, estacion_id: str) -> None:
 
             if resultado["num_personas"] == 0:
                 racha_emocion = 0
+                ventana_emociones.clear()
 
                 if ausente_desde is None:
                     ausente_desde = ahora
@@ -193,6 +199,7 @@ async def consumir_video(track, estacion_id: str) -> None:
                 )
                 if recorte_cara is None:
                     racha_emocion = 0
+                    ventana_emociones.clear()
                     # DEBUG temporal: si esto sale seguido, el problema es que no se puede
                     # ubicar la cara con confianza (angulo de camara, iluminacion, keypoints
                     # de ojos/nariz poco confiables) -> nunca llega a clasificar expresion.
@@ -205,16 +212,19 @@ async def consumir_video(track, estacion_id: str) -> None:
                         settings.emocion_confianza_minima_keypoints,
                     )
                 else:
-                    etiqueta, probabilidad = await loop.run_in_executor(
-                        _executor, detector_emocion.clasificar, recorte_cara
-                    )
-                    # DEBUG temporal: muestra la clasificacion aunque no cruce el umbral, para
-                    # ver si el modelo si esta corriendo y que tan cerca/lejos esta de alertar.
+                    probs = await loop.run_in_executor(_executor, detector_emocion.probabilidades, recorte_cara)
+                    ventana_emociones.append(probs)
+                    # Promedio de los ultimos N cuadros: una expresion real se sostiene unos
+                    # instantes, el ruido de un solo cuadro no.
+                    promedio = {e: sum(p[e] for p in ventana_emociones) / len(ventana_emociones) for e in probs}
+                    etiqueta = max(promedio, key=promedio.get)
+                    probabilidad = promedio[etiqueta]
+                    puntaje_negativo = sum(promedio[e] for e in EMOCIONES_NEGATIVAS)
+                    emocion_negativa = max(EMOCIONES_NEGATIVAS, key=promedio.get)
                     logger.info(
-                        "[debug-expresion] estacion %s: cara detectada, etiqueta=%s prob=%.2f "
-                        "(umbral=%.2f, racha=%d/%d)",
-                        estacion_id, etiqueta, probabilidad, settings.emocion_umbral_probabilidad,
-                        racha_emocion, settings.emocion_frames_consecutivos,
+                        "[debug-expresion] estacion %s: dominante=%s %.2f | negativo=%.2f (umbral %.2f, racha %d/%d)",
+                        estacion_id, etiqueta, probabilidad, puntaje_negativo,
+                        settings.emocion_umbral_probabilidad, racha_emocion, settings.emocion_frames_consecutivos,
                     )
 
                     if etiqueta != ultima_emocion_enviada or (ahora - ultimo_ts_emocion_enviada) >= 3.0:
@@ -227,7 +237,7 @@ async def consumir_video(track, estacion_id: str) -> None:
                         ultimo_ts_emocion_guardada = ahora
                         await registrar_emocion(estacion_id, etiqueta, probabilidad)
 
-                    if etiqueta in EMOCIONES_NEGATIVAS and probabilidad >= settings.emocion_umbral_probabilidad:
+                    if puntaje_negativo >= settings.emocion_umbral_probabilidad:
                         racha_emocion += 1
                     else:
                         racha_emocion = 0
@@ -238,8 +248,9 @@ async def consumir_video(track, estacion_id: str) -> None:
                     if racha_emocion >= settings.emocion_frames_consecutivos and cooldown_emocion_cumplido:
                         ultimo_ts_alerta_emocion = ahora
                         racha_emocion = 0
+                        ventana_emociones.clear()
 
-                        detalle = f"Expresión facial: {etiqueta} ({probabilidad:.0%})"
+                        detalle = f"Expresión facial: {emocion_negativa} ({puntaje_negativo:.0%} de expresión negativa)"
                         # `recorte_cara` es justo el que uso el clasificador para esta alerta:
                         # es la foto mas relevante posible (la cara en el momento exacto del gesto).
                         captura_path = await loop.run_in_executor(
@@ -264,6 +275,7 @@ async def consumir_video(track, estacion_id: str) -> None:
             # `consumir_video` para siempre y la estacion deja de generar alertas hasta reconectar.
             logger.exception("Error procesando frame de video de estacion %s", estacion_id)
             racha_emocion = 0
+            ventana_emociones.clear()
 
 
 async def consumir_audio(track, estacion_id: str) -> None:

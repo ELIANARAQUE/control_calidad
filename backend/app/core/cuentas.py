@@ -10,9 +10,10 @@ import uuid
 import cv2
 import numpy as np
 
-from app.core.seguridad import cifrar, descifrar, hash_busqueda, hashear_clave, verificar_clave
+from app.core.seguridad import cifrar, cifrar_bytes, descifrar, hash_busqueda, hashear_clave, verificar_clave
 from app.core.supabase_client import en_hilo, obtener_supabase
 from app.services.rostros.reconocimiento import (
+    desvio_horizontal_nariz,
     distancia_minima,
     es_misma_persona,
     generar_embedding,
@@ -22,6 +23,10 @@ from app.services.rostros.reconocimiento import (
 NOMBRE_BUCKET_FOTOS = "fotos-empleados"
 ANGULOS_FOTO = ("frontal", "izquierda", "derecha")
 _NOMBRE_ANGULO = {"frontal": "frontal", "izquierda": "lateral izquierda", "derecha": "lateral derecha"}
+# Desvio de la nariz respecto al centro de los ojos, en "distancias entre ojos" (ver
+# `desvio_horizontal_nariz`): de frente ~0; perfil tipico por encima de 0.3.
+_MAX_DESVIO_FRONTAL = 0.22
+_MIN_DESVIO_LATERAL = 0.28
 
 
 class ErrorRegistro(Exception):
@@ -112,6 +117,17 @@ def _crear_usuario_sync(
                 f"No se detectó un rostro en la foto {_NOMBRE_ANGULO[angulo]}. Asegúrate de estar "
                 "en un sitio iluminado, con fondo blanco si es posible, y de que se vea tu cara completa."
             )
+        # Segunda barrera (la primera es la guia de camara del navegador): la foto frontal debe
+        # estar de frente y las laterales, de perfil -si alguien sube una foto que no
+        # corresponde, se rechaza aqui aunque se haya saltado la validacion del navegador-.
+        desvio = desvio_horizontal_nariz(imagenes[angulo])
+        if desvio is not None:
+            if angulo == "frontal" and abs(desvio) > _MAX_DESVIO_FRONTAL:
+                raise ErrorRegistro("La foto frontal no está de frente: mira directo a la cámara y tómala de nuevo")
+            if angulo != "frontal" and abs(desvio) < _MIN_DESVIO_LATERAL:
+                raise ErrorRegistro(
+                    f"La foto {_NOMBRE_ANGULO[angulo]} parece de frente: gira más la cabeza y tómala de nuevo"
+                )
         embeddings[angulo] = embedding
 
     if _rostro_ya_registrado(supabase, embeddings["frontal"]):
@@ -123,9 +139,11 @@ def _crear_usuario_sync(
         ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", imagen, [cv2.IMWRITE_JPEG_QUALITY, 90])
         if not ok_jpeg:
             raise ErrorRegistro(f"No se pudo procesar la foto {_NOMBRE_ANGULO[angulo]}")
-        ruta = f"{usuario_id}/{angulo}.jpg"
+        # La foto del rostro es un dato biometrico sensible: se sube CIFRADA (Fernet), asi que
+        # quien tenga acceso al bucket de Storage solo ve bytes ilegibles, no la cara.
+        ruta = f"{usuario_id}/{angulo}.jpg.enc"
         supabase.storage.from_(NOMBRE_BUCKET_FOTOS).upload(
-            ruta, buffer_jpeg.tobytes(), {"content-type": "image/jpeg", "upsert": "true"}
+            ruta, cifrar_bytes(buffer_jpeg.tobytes()), {"content-type": "application/octet-stream", "upsert": "true"}
         )
         rutas_fotos[angulo] = ruta
 
