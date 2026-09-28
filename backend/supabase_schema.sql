@@ -156,3 +156,14 @@ on conflict (tipo, valor) do nothing;
 insert into storage.buckets (id, name, public)
 values ('fotos-empleados', 'fotos-empleados', false)
 on conflict (id) do nothing;
+
+-- --------------------------------------------------------------------------
+-- Diccionario de lenguaje inapropiado (editable desde el panel). Los terminos iniciales se
+-- cargan con supabase_lenguaje.sql.
+-- --------------------------------------------------------------------------
+create table if not exists lenguaje_inapropiado (
+    id serial primary key,
+    termino text not null unique,
+    categoria text not null check (categoria in ('groseria_fuerte', 'groseria_leve', 'mal_trato')),
+    creado_en timestamptz not null default now()
+);

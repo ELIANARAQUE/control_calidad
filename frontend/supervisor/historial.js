@@ -106,7 +106,50 @@ document.getElementById("btnGuardarOpciones").addEventListener("click", async ()
 // La lista de trabajadores no necesita re-renderizarse en cada evento en vivo (es historico,
 // no telemetria); solo se recarga al abrir la pagina. El badge de pendientes en la topbar
 // (compartido) si sigue actualizandose via Core.onEvento internamente.
+// --- Diccionario de lenguaje inapropiado (tabla `lenguaje_inapropiado` en Supabase) ---
+const CAMPOS_LENGUAJE = {
+  groseria_fuerte: document.getElementById("lenguajeFuerte"),
+  groseria_leve: document.getElementById("lenguajeLeve"),
+  mal_trato: document.getElementById("lenguajeMalTrato"),
+};
+
+function pintarLenguaje(datos) {
+  for (const [categoria, campo] of Object.entries(CAMPOS_LENGUAJE)) {
+    campo.value = (datos[categoria] || []).join("\n");
+  }
+}
+
+async function cargarLenguaje() {
+  try {
+    const resp = await Core.apiFetch("/api/config/lenguaje");
+    if (resp.ok) pintarLenguaje(await resp.json());
+  } catch (err) {
+    Core.mostrarToast("No se pudo cargar el diccionario de lenguaje: " + err.message);
+  }
+}
+
+document.getElementById("btnGuardarLenguaje").addEventListener("click", async () => {
+  try {
+    let ultimo = null;
+    for (const [categoria, campo] of Object.entries(CAMPOS_LENGUAJE)) {
+      const terminos = campo.value.split("\n").map((t) => t.trim()).filter(Boolean);
+      const resp = await Core.apiFetch("/api/config/lenguaje", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoria, terminos }),
+      });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      ultimo = await resp.json();
+    }
+    if (ultimo) pintarLenguaje(ultimo);
+    Core.mostrarToast("Diccionario de lenguaje actualizado");
+  } catch (err) {
+    Core.mostrarToast("No se pudo guardar el diccionario: " + err.message);
+  }
+});
+
 Core.iniciar(() => {
   cargarTrabajadores();
   cargarOpciones();
+  cargarLenguaje();
 });

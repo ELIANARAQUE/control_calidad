@@ -65,12 +65,14 @@ class Settings(BaseSettings):
     emocion_cooldown_segundos: float = 10.0  # tiempo minimo entre alertas repetidas de la misma estacion
 
     # --- Audio / STT ---
-    # Con GPU, "small" da buena precision sin ser lento. Si algun dia se corre sin GPU
-    # (WHISPER_DEVICE=cpu en .env), bajar esto a "base" o "tiny" es la palanca de mayor
-    # impacto para recuperar velocidad.
-    whisper_model_size: str = "small"
+    # large-v3-turbo: mucho mas preciso que "small" con ruido/volumen bajo (en pruebas, "small"
+    # escribia "hipuecuta" en vez de "hijueputa" y se perdia la groseria) y en la GPU tarda
+    # ~0.25 s por frase. Se descarga solo la primera vez (~1.6 GB, a ~/.cache/huggingface).
+    whisper_model_size: str = "deepdml/faster-whisper-large-v3-turbo-ct2"
+    whisper_modelo_cpu: str = "small"  # si la GPU falla, en CPU el modelo grande seria muy lento
     whisper_device: str = "cuda"
     whisper_compute_type: str = "int8_float16"  # cuantizacion para ahorrar VRAM
+    whisper_beam_size: int = 5  # busqueda mas amplia = transcripcion mas precisa (con GPU sobra tiempo)
     # Originalmente 14s/900ms, se bajo a 7s/500ms para reducir latencia, pero 500ms resulto
     # demasiado agresivo: una pausa normal al hablar en espaniol (respirar, dudar) ya dura eso,
     # asi que se cortaba la frase a la mitad y el chunk resultante quedaba sin contexto

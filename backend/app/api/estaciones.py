@@ -12,8 +12,10 @@ from pydantic import BaseModel
 
 from app.core.auth import requerir_admin, requerir_sesion
 from app.core.db import (
+    guardar_diccionario_lenguaje,
     guardar_opciones,
     historial_conexiones,
+    obtener_diccionario_lenguaje,
     listar_eventos_recientes,
     listar_trabajadores_para_informe,
     obtener_opciones,
@@ -21,7 +23,7 @@ from app.core.db import (
 )
 from app.core.state import config_tiempo_real, gestor_estaciones, notificador_estaciones
 from app.services.informes.reporte import generar_reporte_trabajador_xlsx
-from app.services.stt.lenguaje import NIVELES_SENSIBILIDAD
+from app.services.stt.lenguaje import CATEGORIAS, NIVELES_SENSIBILIDAD, refrescar_diccionario
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -62,6 +64,30 @@ async def listar_estaciones(_admin: str = Depends(requerir_admin)) -> list[dict]
         }
         for info in gestor_estaciones.listar()
     ]
+
+
+@router.get("/config/lenguaje")
+async def obtener_lenguaje(_admin: str = Depends(requerir_admin)) -> dict:
+    """Diccionario de lenguaje inapropiado agrupado por categoria (para el editor del panel)."""
+    filas = await obtener_diccionario_lenguaje()
+    agrupado: dict[str, list[str]] = {c: [] for c in CATEGORIAS}
+    for fila in filas:
+        agrupado.setdefault(fila["categoria"], []).append(fila["termino"])
+    return agrupado
+
+
+class TerminosLenguaje(BaseModel):
+    categoria: str
+    terminos: list[str]
+
+
+@router.post("/config/lenguaje")
+async def actualizar_lenguaje(cuerpo: TerminosLenguaje, _admin: str = Depends(requerir_admin)) -> dict:
+    if cuerpo.categoria not in CATEGORIAS:
+        raise HTTPException(status_code=400, detail=f"categoria debe ser una de {list(CATEGORIAS)}")
+    await guardar_diccionario_lenguaje(cuerpo.categoria, cuerpo.terminos)
+    await refrescar_diccionario(forzar=True)  # los cambios aplican de inmediato
+    return await obtener_lenguaje()
 
 
 @router.get("/mis-sesiones")

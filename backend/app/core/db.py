@@ -222,6 +222,40 @@ async def guardar_opciones(tipo: str, valores: list[str]) -> None:
 
 
 # ============================================================================
+# Diccionario de lenguaje inapropiado (editable desde el panel de administrador)
+# ============================================================================
+
+def _obtener_diccionario_lenguaje_sync() -> list[dict]:
+    return (
+        obtener_supabase().table("lenguaje_inapropiado").select("termino, categoria").order("termino").execute()
+    ).data
+
+
+async def obtener_diccionario_lenguaje() -> list[dict]:
+    return await en_hilo(_obtener_diccionario_lenguaje_sync)
+
+
+def _guardar_diccionario_lenguaje_sync(categoria: str, terminos: list[str]) -> None:
+    supabase = obtener_supabase()
+    supabase.table("lenguaje_inapropiado").delete().eq("categoria", categoria).execute()
+    filas, vistos = [], set()
+    for termino in terminos:
+        limpio = " ".join(termino.strip().lower().split())
+        if limpio and limpio not in vistos:
+            vistos.add(limpio)
+            filas.append({"termino": limpio, "categoria": categoria})
+    if filas:
+        # upsert: si el termino ya existia en OTRA categoria, se mueve a esta.
+        supabase.table("lenguaje_inapropiado").upsert(filas, on_conflict="termino").execute()
+
+
+async def guardar_diccionario_lenguaje(categoria: str, terminos: list[str]) -> None:
+    """Reemplaza por completo los terminos de una categoria (groseria_fuerte, groseria_leve,
+    mal_trato), igual que el editor de sede/modulo."""
+    await en_hilo(_guardar_diccionario_lenguaje_sync, categoria, terminos)
+
+
+# ============================================================================
 # Sesiones: reconstruccion de ventanas de tiempo por estacion
 # ============================================================================
 

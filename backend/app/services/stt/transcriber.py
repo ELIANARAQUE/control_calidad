@@ -128,7 +128,7 @@ class Transcriptor:
             "pero deja de romperse en cada chunk-.",
             settings.whisper_device,
         )
-        self.modelo = WhisperModel(settings.whisper_model_size, device="cpu", compute_type="int8")
+        self.modelo = WhisperModel(settings.whisper_modelo_cpu, device="cpu", compute_type="int8")
         self._forzado_a_cpu = True
 
     def transcribir_chunk(self, audio_f32_mono_16k: np.ndarray) -> str:
@@ -154,7 +154,7 @@ class Transcriptor:
                 language="es",
                 vad_filter=True,
                 vad_parameters={"threshold": 0.5, "min_silence_duration_ms": 300},
-                beam_size=1,  # beam pequeno para priorizar latencia sobre precision
+                beam_size=settings.whisper_beam_size,
                 condition_on_previous_text=False,  # evita que una alucinacion se "contagie" al siguiente chunk
             )
             segmentos = list(segmentos)  # fuerza la evaluacion aqui, dentro del try
@@ -168,7 +168,7 @@ class Transcriptor:
                 language="es",
                 vad_filter=True,
                 vad_parameters={"threshold": 0.5, "min_silence_duration_ms": 300},
-                beam_size=1,
+                beam_size=settings.whisper_beam_size,
                 condition_on_previous_text=False,
             )
 

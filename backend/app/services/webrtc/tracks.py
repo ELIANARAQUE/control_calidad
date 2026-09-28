@@ -20,7 +20,7 @@ from app.core.seguridad import cifrar_bytes
 from app.core.db import RUTA_CAPTURAS, registrar_alerta, registrar_emocion, registrar_transcripcion
 from app.core.state import bus_alertas, config_tiempo_real, gestor_estaciones, nuevo_evento
 from app.services.emocion.detector import EMOCIONES_NEGATIVAS, DetectorEmocion, recortar_cara
-from app.services.stt.lenguaje import contiene_lenguaje_inapropiado
+from app.services.stt.lenguaje import contiene_lenguaje_inapropiado, refrescar_diccionario
 from app.services.stt.transcriber import Transcriptor
 from app.services.yolo.detector import NARIZ, OJO_DER, OJO_IZQ, DetectorYOLO, LimitadorFPS
 
@@ -421,6 +421,7 @@ async def consumir_audio(track, estacion_id: str) -> None:
         await registrar_transcripcion(estacion_id, texto)
         await bus_alertas.emitir(nuevo_evento(estacion_id, "transcripcion", {"texto": texto}))
 
+        await refrescar_diccionario()  # recoge cambios del diccionario hechos desde el panel (cache de 60 s)
         deteccion = contiene_lenguaje_inapropiado(texto, nivel=config_tiempo_real.sensibilidad_lenguaje)
         if deteccion:
             categoria_deteccion, texto_detectado = deteccion
