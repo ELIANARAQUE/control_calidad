@@ -13,16 +13,39 @@ y el resto del backend es asyncio, asi que sin esto cada consulta congelaria el 
 completo -el mismo problema, ya resuelto antes, de correr codigo bloqueante directo en una
 corutina-.
 """
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
 from app.core.supabase_client import en_hilo, obtener_supabase
+
+logger = logging.getLogger(__name__)
 
 RUTA_CAPTURAS = Path(__file__).parent.parent.parent / "data" / "capturas"
 
 
 def _ahora() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _a_datetime(iso: str) -> datetime:
+    dt = datetime.fromisoformat(iso)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _en_rango(iso: str, desde: datetime | None, hasta: datetime | None) -> bool:
+    """El instante `iso` cae dentro de [desde, hasta) (cualquiera de los dos puede faltar)."""
+    if desde is None and hasta is None:
+        return True
+    dt = _a_datetime(iso)
+    return (desde is None or dt >= desde) and (hasta is None or dt < hasta)
+
+
+def _sesion_en_rango(sesion: dict, desde: datetime | None, hasta: datetime | None) -> bool:
+    """La sesion se cruza con el periodo [desde, hasta) aunque haya empezado antes o terminado despues."""
+    return (hasta is None or _a_datetime(sesion["inicio"]) < hasta) and (
+        desde is None or _a_datetime(sesion["fin"]) >= desde
+    )
 
 
 # ============================================================================
@@ -148,18 +171,20 @@ def _registrar_evento_conexion_sync(
     sede: str | None,
     modulo: str | None,
     acepto_habeas_data: bool | None,
-) -> None:
+) -> str:
+    momento = _ahora()
     obtener_supabase().table("eventos_conexion").insert(
         {
             "estacion_id": estacion_id,
             "empleado_nombre": empleado_nombre,
             "tipo": tipo,
-            "timestamp": _ahora(),
+            "timestamp": momento,
             "sede": sede,
             "modulo": modulo,
             "acepto_habeas_data": acepto_habeas_data,
         }
     ).execute()
+    return momento
 
 
 async def registrar_evento_conexion(
@@ -169,13 +194,98 @@ async def registrar_evento_conexion(
     sede: str | None = None,
     modulo: str | None = None,
     acepto_habeas_data: bool | None = None,
-) -> None:
-    """tipo: 'conexion' o 'desconexion' -- log de cuando cada estacion entro/salio.
+) -> str:
+    """tipo: 'conexion' o 'desconexion' -- log de cuando cada estacion entro/salio. Devuelve la
+    hora registrada (la de 'conexion' identifica la sesion, ej. para sus pausas).
 
     `acepto_habeas_data` queda registrado como evidencia de auditoria de que el empleado
     autorizo el tratamiento de datos (Ley 1581 de 2012) antes de iniciar el monitoreo.
     """
-    await en_hilo(_registrar_evento_conexion_sync, estacion_id, empleado_nombre, tipo, sede, modulo, acepto_habeas_data)
+    return await en_hilo(_registrar_evento_conexion_sync, estacion_id, empleado_nombre, tipo, sede, modulo, acepto_habeas_data)
+
+
+# ============================================================================
+# Pausas (almuerzo / break): una fila por cada vez que el empleado pausa la transmision
+# ============================================================================
+
+TIPOS_PAUSA = ("almuerzo", "break")
+_MENSAJE_SIN_TABLA_PAUSAS = (
+    "Falta la tabla 'pausas' en la base de datos: ejecuta backend/supabase_version_definitiva.sql "
+    "en el SQL Editor de Supabase"
+)
+
+
+class ErrorPausas(Exception):
+    """La tabla `pausas` todavia no existe (no se ha corrido el script SQL actualizado)."""
+
+
+def _es_tabla_faltante(err: Exception) -> bool:
+    return getattr(err, "code", None) == "PGRST205" or "PGRST205" in str(err)
+
+
+def _leer_pausas(consulta) -> list[dict]:
+    """Lee pausas sin romper el historial si la tabla aun no existe (sale como 'sin pausas')."""
+    try:
+        return consulta().execute().data
+    except Exception as err:
+        if _es_tabla_faltante(err):
+            logger.warning(_MENSAJE_SIN_TABLA_PAUSAS)
+            return []
+        raise
+
+
+def _iniciar_pausa_sync(estacion_id: str, empleado_nombre: str, sesion_inicio: str, tipo: str) -> dict:
+    fila = {
+        "estacion_id": estacion_id,
+        "empleado_nombre": empleado_nombre,
+        "sesion_inicio": sesion_inicio,
+        "tipo": tipo,
+        "inicio": _ahora(),
+    }
+    try:
+        creada = obtener_supabase().table("pausas").insert(fila).execute().data[0]
+    except Exception as err:
+        if _es_tabla_faltante(err):
+            raise ErrorPausas(_MENSAJE_SIN_TABLA_PAUSAS) from err
+        raise
+    return {"id": creada["id"], "tipo": tipo, "inicio": fila["inicio"]}
+
+
+async def iniciar_pausa(estacion_id: str, empleado_nombre: str, sesion_inicio: str, tipo: str) -> dict:
+    return await en_hilo(_iniciar_pausa_sync, estacion_id, empleado_nombre, sesion_inicio, tipo)
+
+
+def _finalizar_pausas_abiertas_sync(estacion_id: str) -> None:
+    _leer_pausas(lambda: obtener_supabase().table("pausas").update({"fin": _ahora()}).eq("estacion_id", estacion_id).is_("fin", "null"))
+
+
+async def finalizar_pausas_abiertas(estacion_id: str) -> None:
+    """Cierra la pausa abierta de la estacion (al reanudar, o si se desconecta estando en pausa)."""
+    await en_hilo(_finalizar_pausas_abiertas_sync, estacion_id)
+
+
+def _repartir_pausas(sesiones_por_estacion: dict[str, list[dict]], pausas: list[dict]) -> None:
+    """Asigna cada pausa a la sesion en la que empezo y suma, por sesion, el tiempo total y las
+    veces de cada tipo (una pausa sin `fin` cuenta hasta el fin de su sesion o hasta ahora)."""
+    for sesiones in sesiones_por_estacion.values():
+        for s in sesiones:
+            s.setdefault("pausas", [])
+    for fila in pausas:
+        for s in sesiones_por_estacion.get(fila["estacion_id"], []):
+            if s["inicio"] <= fila["inicio"] < s["fin"]:
+                fin = fila["fin"] or min(s["fin"], _ahora())
+                segundos = max(0, int((_a_datetime(fin) - _a_datetime(fila["inicio"])).total_seconds()))
+                s["pausas"].append({"tipo": fila["tipo"], "inicio": fila["inicio"], "fin": fila["fin"], "segundos": segundos})
+                break
+
+
+def _totales_pausas(pausas: list[dict]) -> dict:
+    totales = {}
+    for tipo in TIPOS_PAUSA:
+        del_tipo = [p for p in pausas if p["tipo"] == tipo]
+        totales[f"veces_{tipo}"] = len(del_tipo)
+        totales[f"segundos_{tipo}"] = sum(p["segundos"] for p in del_tipo)
+    return totales
 
 
 # ============================================================================
@@ -386,12 +496,21 @@ def _historial_conexiones_sync(nombre: str) -> list[dict]:
     for fila in filas:
         ultimos_por_estacion[fila["estacion_id"]] = fila["timestamp"]
     sesiones = [s for s in _calcular_sesiones(filas) if s["nombre"] == nombre]
+    por_estacion: dict[str, list[dict]] = {}
+    for s in sesiones:
+        por_estacion.setdefault(s["estacion_id"], []).append(s)
+    if por_estacion:
+        pausas = _leer_pausas(
+            lambda: obtener_supabase().table("pausas").select("estacion_id, tipo, inicio, fin").in_("estacion_id", list(por_estacion))
+        )
+        _repartir_pausas(por_estacion, pausas)
     resultado = [
         {
             "inicio": s["inicio"],
             "fin": None if s["inicio"] == ultimos_por_estacion.get(s["estacion_id"]) else s["fin"],
             "sede": s["sede"],
             "modulo": s["modulo"],
+            **_totales_pausas(s.get("pausas", [])),
         }
         for s in sesiones
     ]
@@ -483,10 +602,129 @@ async def listar_eventos_recientes(limite_por_tipo: int = 300) -> list[dict]:
 
 
 # ============================================================================
+# Historial general: una fila por sesion de monitoreo (todos los empleados)
+# ============================================================================
+
+_TAMANO_PAGINA = 1000  # Supabase devuelve como maximo 1000 filas por consulta
+
+
+def _todas_las_filas(tabla: str, columnas: str) -> list[dict]:
+    """Lee la tabla completa en paginas (sin esto, Supabase corta en las primeras 1000 filas)."""
+    supabase = obtener_supabase()
+    filas: list[dict] = []
+    inicio = 0
+    while True:
+        pagina = (
+            supabase.table(tabla)
+            .select(columnas)
+            .order("timestamp")
+            .range(inicio, inicio + _TAMANO_PAGINA - 1)
+            .execute()
+        ).data
+        filas.extend(pagina)
+        if len(pagina) < _TAMANO_PAGINA:
+            return filas
+        inicio += _TAMANO_PAGINA
+
+
+def _listar_sesiones_historial_sync(desde: datetime | None, hasta: datetime | None, detalle: bool) -> list[dict]:
+    filas_eventos = _todas_las_filas("eventos_conexion", "estacion_id, empleado_nombre, tipo, timestamp, sede, modulo")
+    ultimos_por_estacion: dict[str, str] = {}
+    for fila in filas_eventos:
+        ultimos_por_estacion[fila["estacion_id"]] = fila["timestamp"]
+
+    sesiones = [s for s in _calcular_sesiones(filas_eventos) if _sesion_en_rango(s, desde, hasta)]
+    por_estacion: dict[str, list[dict]] = {}
+    for sesion in sesiones:
+        sesion["en_curso"] = sesion["inicio"] == ultimos_por_estacion.get(sesion["estacion_id"])
+        sesion["alertas"] = []
+        sesion["transcripciones"] = 0
+        sesion["textos"] = []
+        por_estacion.setdefault(sesion["estacion_id"], []).append(sesion)
+
+    def _sesion_de(estacion_id: str, timestamp: str) -> dict | None:
+        for sesion in por_estacion.get(estacion_id, []):
+            if sesion["inicio"] <= timestamp < sesion["fin"]:
+                return sesion
+        return None
+
+    pausas = _leer_pausas(lambda: obtener_supabase().table("pausas").select("estacion_id, tipo, inicio, fin").order("inicio"))
+    _repartir_pausas(por_estacion, pausas)
+
+    for fila in _todas_las_filas("alertas", "estacion_id, tipo, detalle, timestamp, veredicto, captura_path"):
+        sesion = _sesion_de(fila["estacion_id"], fila["timestamp"])
+        if sesion is not None:
+            alerta = {
+                "tipo": fila["tipo"],
+                "detalle": fila["detalle"],
+                "timestamp": fila["timestamp"],
+                "veredicto": fila["veredicto"] or "sin_revisar",
+            }
+            if detalle:  # la ruta de la foto nunca sale al navegador, solo se usa en el Excel
+                alerta["captura_path"] = fila["captura_path"]
+            sesion["alertas"].append(alerta)
+    columnas_transcripcion = "estacion_id, timestamp, texto" if detalle else "estacion_id, timestamp"
+    for fila in _todas_las_filas("transcripciones", columnas_transcripcion):
+        sesion = _sesion_de(fila["estacion_id"], fila["timestamp"])
+        if sesion is not None:
+            sesion["transcripciones"] += 1
+            if detalle:
+                sesion["textos"].append({"timestamp": fila["timestamp"], "texto": fila["texto"]})
+
+    resultado = []
+    for s in sesiones:
+        fin = None if s["en_curso"] else s["fin"]
+        duracion = int((_a_datetime(fin or _ahora()) - _a_datetime(s["inicio"])).total_seconds())
+        totales_pausa = _totales_pausas(s["pausas"])
+        segundos_pausa = totales_pausa["segundos_almuerzo"] + totales_pausa["segundos_break"]
+        conteo = {t: 0 for t in ("lenguaje", "expresion", "ausencia", "expresion_positiva", "postura")}
+        for alerta in s["alertas"]:
+            if alerta["tipo"] in conteo:
+                conteo[alerta["tipo"]] += 1
+        resultado.append(
+            {
+                "id": f"{s['estacion_id']}|{s['inicio']}",
+                "nombre": s["nombre"],
+                "sede": s["sede"],
+                "modulo": s["modulo"],
+                "inicio": s["inicio"],
+                "fin": fin,
+                "duracion_segundos": duracion,
+                # Tiempo de la sesion descontando almuerzos y breaks.
+                "segundos_efectivos": max(0, duracion - segundos_pausa),
+                **totales_pausa,
+                "pausas": s["pausas"],
+                "alertas_lenguaje": conteo["lenguaje"],
+                "alertas_expresion": conteo["expresion"],
+                "alertas_ausencia": conteo["ausencia"],
+                "expresiones_positivas": conteo["expresion_positiva"],
+                # Las expresiones positivas son informativas: no suman como alertas.
+                "total_alertas": conteo["lenguaje"] + conteo["expresion"] + conteo["ausencia"] + conteo["postura"],
+                "transcripciones": s["transcripciones"],
+                "alertas": sorted(s["alertas"], key=lambda a: a["timestamp"]),
+                **({"textos": s["textos"]} if detalle else {}),
+            }
+        )
+    resultado.sort(key=lambda s: s["inicio"], reverse=True)
+    return resultado
+
+
+async def listar_sesiones_historial(
+    desde: datetime | None = None, hasta: datetime | None = None, detalle: bool = False
+) -> list[dict]:
+    """TODAS las sesiones de monitoreo de todos los empleados (la mas reciente primero), con su
+    hora de inicio y fin, y las alertas que ocurrieron dentro de cada una. `desde`/`hasta`
+    (opcionales) dejan solo las sesiones que se cruzan con ese periodo. Con `detalle=True`
+    cada sesion trae tambien sus transcripciones (`textos`) y la foto de cada alerta, para el
+    Excel desglosado."""
+    return await en_hilo(_listar_sesiones_historial_sync, desde, hasta, detalle)
+
+
+# ============================================================================
 # Reportes por trabajador
 # ============================================================================
 
-def _listar_trabajadores_para_informe_sync() -> list[dict]:
+def _listar_trabajadores_para_informe_sync(desde: datetime | None, hasta: datetime | None) -> list[dict]:
     supabase = obtener_supabase()
     filas_eventos = (
         supabase.table("eventos_conexion")
@@ -501,6 +739,8 @@ def _listar_trabajadores_para_informe_sync() -> list[dict]:
 
     trabajadores: dict[str, dict] = {}
     for sesion in sesiones:
+        if not _sesion_en_rango(sesion, desde, hasta):
+            continue
         info = trabajadores.setdefault(
             sesion["nombre"],
             {
@@ -536,6 +776,8 @@ def _listar_trabajadores_para_informe_sync() -> list[dict]:
         return None
 
     for fila in alertas:
+        if not _en_rango(fila["timestamp"], desde, hasta):
+            continue
         sesion = _sesion_de(fila["estacion_id"], fila["timestamp"])
         if sesion is None or sesion["nombre"] not in trabajadores:
             continue
@@ -544,6 +786,8 @@ def _listar_trabajadores_para_informe_sync() -> list[dict]:
             trabajadores[sesion["nombre"]][clave] += 1
 
     for fila in transcripciones:
+        if not _en_rango(fila["timestamp"], desde, hasta):
+            continue
         sesion = _sesion_de(fila["estacion_id"], fila["timestamp"])
         if sesion is not None and sesion["nombre"] in trabajadores:
             trabajadores[sesion["nombre"]]["transcripciones"] += 1
@@ -573,18 +817,21 @@ def _listar_trabajadores_para_informe_sync() -> list[dict]:
     return resultado
 
 
-async def listar_trabajadores_para_informe() -> list[dict]:
+async def listar_trabajadores_para_informe(desde: datetime | None = None, hasta: datetime | None = None) -> list[dict]:
     """Un resumen por trabajador (agrupado por nombre) para poblar la lista de 'Historial y
     Reportes': con cuantas sesiones, alertas y desde cuando tiene actividad registrada.
 
     Cada alerta/transcripcion se cuenta solo si cayo dentro de la ventana de tiempo de una
     sesion de ese nombre (ver `_calcular_sesiones`), no simplemente si paso alguna vez por la
     misma estacion -asi no se le suman a un trabajador alertas que en realidad son de otra
-    persona que uso el mismo equipo antes o despues."""
-    return await en_hilo(_listar_trabajadores_para_informe_sync)
+    persona que uso el mismo equipo antes o despues.
+
+    `desde`/`hasta` (opcionales) limitan el resumen a un periodo: solo cuentan las sesiones que
+    se cruzan con el y las alertas/transcripciones ocurridas dentro."""
+    return await en_hilo(_listar_trabajadores_para_informe_sync, desde, hasta)
 
 
-def _obtener_datos_reporte_trabajador_sync(nombre: str) -> dict:
+def _obtener_datos_reporte_trabajador_sync(nombre: str, desde: datetime | None, hasta: datetime | None) -> dict:
     supabase = obtener_supabase()
     filas_eventos = (
         supabase.table("eventos_conexion")
@@ -592,7 +839,9 @@ def _obtener_datos_reporte_trabajador_sync(nombre: str) -> dict:
         .order("timestamp")
         .execute()
     ).data
-    sesiones_trabajador = [s for s in _calcular_sesiones(filas_eventos) if s["nombre"] == nombre]
+    sesiones_trabajador = [
+        s for s in _calcular_sesiones(filas_eventos) if s["nombre"] == nombre and _sesion_en_rango(s, desde, hasta)
+    ]
 
     estaciones = sorted({s["estacion_id"] for s in sesiones_trabajador})
     alertas: list[dict] = []
@@ -621,6 +870,8 @@ def _obtener_datos_reporte_trabajador_sync(nombre: str) -> dict:
         ).data
 
     def _dentro_de_alguna_sesion(estacion_id: str, timestamp: str) -> bool:
+        if not _en_rango(timestamp, desde, hasta):
+            return False
         return any(
             s["estacion_id"] == estacion_id and s["inicio"] <= timestamp < s["fin"] for s in sesiones_trabajador
         )
@@ -676,10 +927,12 @@ def _obtener_datos_reporte_trabajador_sync(nombre: str) -> dict:
     }
 
 
-async def obtener_datos_reporte_trabajador(nombre: str) -> dict:
+async def obtener_datos_reporte_trabajador(
+    nombre: str, desde: datetime | None = None, hasta: datetime | None = None
+) -> dict:
     """Todo lo necesario para armar el reporte .xlsx de un trabajador: sus sesiones (una por
     cada 'conexion' con ese nombre) y, para cada una, solo las alertas/transcripciones que
     cayeron DENTRO de esa ventana de tiempo -no toda la historia de la estacion que uso-, para
     que el reporte de una persona nunca incluya actividad de otra que compartio el mismo
-    equipo en otro momento."""
-    return await en_hilo(_obtener_datos_reporte_trabajador_sync, nombre)
+    equipo en otro momento. `desde`/`hasta` (opcionales) limitan el reporte a un periodo."""
+    return await en_hilo(_obtener_datos_reporte_trabajador_sync, nombre, desde, hasta)

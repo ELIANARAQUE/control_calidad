@@ -53,8 +53,10 @@ def _fecha_legible(iso: str | None) -> str:
     return dt.strftime("%d/%m/%Y %H:%M")
 
 
-async def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
-    datos = await obtener_datos_reporte_trabajador(nombre)
+async def generar_reporte_trabajador_xlsx(
+    nombre: str, desde: datetime | None = None, hasta: datetime | None = None, periodo: str = "Todo el historial"
+) -> bytes:
+    datos = await obtener_datos_reporte_trabajador(nombre, desde, hasta)
     sesiones = datos["sesiones"]
     eventos = datos["eventos"]
 
@@ -96,6 +98,9 @@ async def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
     ws["A3"] = "Generado el:"
     ws["B3"] = _fecha_legible(datetime.now(timezone.utc).isoformat())
     ws["A3"].font = Font(bold=True)
+    ws["C3"] = "Periodo:"
+    ws["D3"] = periodo
+    ws["C3"].font = Font(bold=True)
 
     filas_resumen = [
         ("Nombre del trabajador", nombre),

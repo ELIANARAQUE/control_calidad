@@ -50,7 +50,8 @@
 
     <div class="flex flex-col gap-1">
       <label class="text-sm font-semibold text-[#2b2156]" for="correo">Correo electrónico</label>
-      <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="correo" type="email" placeholder="nombre@dominio.com" required />
+      <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="correo" type="text" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="nombre@universitariadecolombia.edu.co" required />
+      <span class="text-xs text-[#9b93b5]" id="ayudaCorreo">Solo correo institucional (@universitariadecolombia.edu.co).</span>
     </div>
 
     <div class="grid grid-cols-2 gap-3">
@@ -115,23 +116,16 @@
   </p>
 </div>
 
-<!-- Modal: subir/tomar foto -->
+<!-- Modal: tomar foto con la camara (no se permite subir archivos) -->
 <div class="oculto fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" id="modalFoto">
   <div class="bg-white rounded-[1.4rem] shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
-    <h2 class="titulo font-bold text-lg text-[#2b2156]" id="tituloModalFoto">Subir foto</h2>
+    <h2 class="titulo font-bold text-lg text-[#2b2156]" id="tituloModalFoto">Tomar foto</h2>
     <p class="text-sm text-[#b45309] bg-[#fef3c7] rounded-lg px-3 py-2">
       Recuerde estar en un sitio iluminado y, de ser posible, con un fondo blanco.
     </p>
     <p class="text-sm text-[#2b2156] font-semibold" id="instruccionAngulo"></p>
 
-    <div class="flex gap-3">
-      <button class="flex-1 py-2 rounded-lg font-semibold bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="btnModoArchivo" type="button">Desde el computador</button>
-      <button class="flex-1 py-2 rounded-lg font-semibold bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="btnModoCamara" type="button">Tomar foto</button>
-    </div>
-
-    <input class="oculto" type="file" id="inputArchivoFoto" accept="image/*" />
-
-    <div class="oculto flex flex-col gap-2" id="wrapCamaraRegistro">
+    <div class="flex flex-col gap-2" id="wrapCamaraRegistro">
       <div class="relative rounded-xl overflow-hidden bg-[#231a47] aspect-[3/4] max-h-[55vh] mx-auto w-full">
         <!-- Espejo (scaleX(-1)) solo visual, como un selfie: la guia analiza el video original. -->
         <video id="videoRegistro" class="absolute inset-0 w-full h-full object-cover -scale-x-100" autoplay playsinline muted></video>
@@ -143,7 +137,7 @@
 
     <div class="flex gap-3">
       <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="btnCancelarFoto" type="button">Cancelar</button>
-      <button class="oculto flex-1 py-2.5 rounded-lg font-semibold bg-[#5b46d6] text-white disabled:opacity-40 disabled:cursor-not-allowed" id="btnTomarFoto" type="button" disabled>Tomar foto</button>
+      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#5b46d6] text-white disabled:opacity-40 disabled:cursor-not-allowed" id="btnTomarFoto" type="button" disabled>Tomar foto</button>
     </div>
   </div>
 </div>
@@ -183,6 +177,6 @@
   </div>
 </div>
 
-<script src="client.js?v=4"></script>
+<script src="client.js?v=6"></script>
 </body>
 </html>

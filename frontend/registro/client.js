@@ -1,9 +1,16 @@
 // Formulario de registro de cuentas (empleado/admin): validaciones en vivo por campo, modal de
-// foto (subir archivo o tomar con la camara), y el flujo de confirmacion con clave de
+// foto (solo con la camara y la guia del ovalo: no se aceptan archivos subidos), y el flujo de confirmacion con clave de
 // super-admin cuando se elige el rol "Administrador".
 
 const REGEX_NOMBRE = /^[A-Za-zÀ-ÿ\s]*$/;
 const REGEX_DOCUMENTO = /^[0-9]*$/;
+const DOMINIO_CORREO = "@universitariadecolombia.edu.co";
+const MENSAJE_CORREO = `El correo no puede tener espacios y debe terminar en ${DOMINIO_CORREO}`;
+
+// Las dos unicas reglas del correo: sin espacios y terminado en el dominio institucional.
+function correoValido(correo) {
+  return !/\s/.test(correo) && correo.toLowerCase().endsWith(DOMINIO_CORREO) && correo.length > DOMINIO_CORREO.length;
+}
 
 const form = document.getElementById("formRegistro");
 const nombreEl = document.getElementById("nombre");
@@ -38,8 +45,21 @@ numeroDocumentoEl.addEventListener("input", () => {
   }
 });
 
+const ayudaCorreoEl = document.getElementById("ayudaCorreo");
 correoEl.addEventListener("input", () => {
   correoEl.value = correoEl.value.replace(/\s/g, "");
+  correoEl.classList.remove("campo-error");
+  ayudaCorreoEl.textContent = `Solo correo institucional (${DOMINIO_CORREO}).`;
+  ayudaCorreoEl.className = "text-xs text-[#9b93b5]";
+});
+// Al salir del campo se avisa de una vez si el dominio no es el institucional.
+correoEl.addEventListener("blur", () => {
+  const valor = correoEl.value.trim();
+  if (valor && !correoValido(valor)) {
+    correoEl.classList.add("campo-error");
+    ayudaCorreoEl.textContent = MENSAJE_CORREO;
+    ayudaCorreoEl.className = "text-xs text-red-600 font-semibold";
+  }
 });
 
 for (const el of [claveEl, confirmarClaveEl]) {
@@ -69,10 +89,8 @@ async function cargarTiposDocumento() {
 }
 cargarTiposDocumento();
 
-// --- Modal de foto: subir archivo o tomar con la camara ---
+// --- Modal de foto: solo con la camara ---
 const modalFoto = document.getElementById("modalFoto");
-const inputArchivoFoto = document.getElementById("inputArchivoFoto");
-const wrapCamaraRegistro = document.getElementById("wrapCamaraRegistro");
 const videoRegistro = document.getElementById("videoRegistro");
 const canvasRegistro = document.getElementById("canvasRegistro");
 const btnTomarFoto = document.getElementById("btnTomarFoto");
@@ -84,6 +102,7 @@ document.querySelectorAll(".slot-foto").forEach((slot) => {
     document.getElementById("tituloModalFoto").textContent = TITULO_ANGULO[anguloActual];
     document.getElementById("instruccionAngulo").textContent = INSTRUCCION_ANGULO[anguloActual];
     modalFoto.classList.remove("oculto");
+    abrirCamaraRegistro();
   });
 });
 
@@ -113,42 +132,12 @@ function cerrarModalFoto() {
   guia?.detener();
   streamRegistro?.getTracks().forEach((t) => t.stop());
   streamRegistro = null;
-  wrapCamaraRegistro.classList.add("oculto");
-  btnTomarFoto.classList.add("oculto");
   btnTomarFoto.disabled = true;
   modalFoto.classList.add("oculto");
 }
 document.getElementById("btnCancelarFoto").addEventListener("click", cerrarModalFoto);
 
-document.getElementById("btnModoArchivo").addEventListener("click", () => {
-  guia?.detener();
-  wrapCamaraRegistro.classList.add("oculto");
-  btnTomarFoto.classList.add("oculto");
-  inputArchivoFoto.click();
-});
-
-inputArchivoFoto.addEventListener("change", async () => {
-  const archivo = inputArchivoFoto.files[0];
-  inputArchivoFoto.value = "";
-  if (!archivo) return;
-  // Una foto subida tambien debe cumplir el angulo pedido (frontal / perfil izq. / perfil der.).
-  try {
-    const { validarImagen } = await moduloGuia;
-    const { valido, mensaje } = await validarImagen(archivo, anguloActual);
-    if (!valido) {
-      alert(`Esta foto no sirve como "${TITULO_ANGULO[anguloActual]}": ${mensaje}`);
-      return;
-    }
-  } catch (err) {
-    alert("No se pudo analizar la foto: " + err.message);
-    return;
-  }
-  guardarFoto(archivo);
-});
-
-document.getElementById("btnModoCamara").addEventListener("click", async () => {
-  wrapCamaraRegistro.classList.remove("oculto");
-  btnTomarFoto.classList.remove("oculto");
+async function abrirCamaraRegistro() {
   btnTomarFoto.disabled = true;
   mostrarMensajeGuia("Cargando guía de cámara…", false);
   try {
@@ -168,7 +157,7 @@ document.getElementById("btnModoCamara").addEventListener("click", async () => {
   } catch (err) {
     mostrarMensajeGuia("No se pudo iniciar la cámara o la guía: " + err.message, false);
   }
-});
+}
 
 btnTomarFoto.addEventListener("click", () => {
   if (btnTomarFoto.disabled) return;
@@ -216,8 +205,9 @@ form.addEventListener("submit", async (ev) => {
 
   if (!nombreEl.value.trim()) return mostrarError("El nombre es obligatorio");
   if (!numeroDocumentoEl.value.trim()) return mostrarError("El número de documento es obligatorio");
-  if (!/^[^\s@]+@[^\s@]+\.com$/.test(correoEl.value.trim())) {
-    return mostrarError('El correo debe contener "@" y terminar en ".com", sin espacios');
+  if (!correoValido(correoEl.value.trim())) {
+    correoEl.classList.add("campo-error");
+    return mostrarError(MENSAJE_CORREO);
   }
   if (claveEl.value.length === 0) return mostrarError("La contraseña es obligatoria");
   if (claveEl.value !== confirmarClaveEl.value) return mostrarError("Las contraseñas no coinciden");

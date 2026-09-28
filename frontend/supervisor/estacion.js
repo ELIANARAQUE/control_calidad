@@ -59,10 +59,23 @@ function renderizarCabecera() {
   avatarEstacionEl.style.background = Core.colorAvatar(estacionId);
 
   const conectada = !!datos?.conectada;
+  const pausa = datos?.pausa;
   estadoConexionEstacionEl.innerHTML = `
-    <span class="w-2 h-2 rounded-full ${conectada ? "bg-secondary-container animate-pulse" : "bg-outline"}"></span>
-    <span class="font-label-sm text-label-sm">${conectada ? "EN VIVO" : "DESCONECTADA"}</span>
+    <span class="w-2 h-2 rounded-full ${pausa ? "bg-[#f59e0b]" : conectada ? "bg-secondary-container animate-pulse" : "bg-outline"}"></span>
+    <span class="font-label-sm text-label-sm">${pausa ? "EN PAUSA" : conectada ? "EN VIVO" : "DESCONECTADA"}</span>
   `;
+
+  videoWrapEl.dataset.estacionPausa = estacionId;
+  if (pausa) {
+    const marca = `${pausa.tipo}|${pausa.inicio}`;
+    if (videoWrapEl.dataset.pausa !== marca) {
+      videoWrapEl.dataset.pausa = marca;
+      videoWrapEl.innerHTML = Core.htmlPausa(pausa);
+    }
+    return;
+  }
+  delete videoWrapEl.dataset.pausa;
+  if (videoWrapEl.querySelector(".pausa-senal")) videoWrapEl.innerHTML = "";
 
   if (conectada) {
     if (!videoWrapEl.querySelector("img")) {

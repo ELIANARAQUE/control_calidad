@@ -3,7 +3,8 @@
 --
 -- Contiene TODO lo que necesita el sistema: tablas, indices, bucket de fotos y datos
 -- iniciales (tipos de documento, clave de super-admin, opciones de sede/modulo y el
--- diccionario de lenguaje inapropiado de Colombia).
+-- diccionario de lenguaje inapropiado de Colombia), y las pausas de almuerzo/break con
+-- la vista `pausas_por_sesion` (tiempo total de cada tipo de pausa por sesion).
 --
 -- Como usarlo: Supabase -> SQL Editor -> New query -> pegar todo -> Run.
 --
@@ -171,6 +172,43 @@ create table if not exists lenguaje_inapropiado (
     categoria text not null check (categoria in ('groseria_fuerte', 'groseria_leve', 'mal_trato')),
     creado_en timestamptz not null default now()
 );
+
+-- --------------------------------------------------------------------------
+-- Pausas de la transmision: el empleado sale a almuerzo o a un break. Una fila
+-- por cada pausa (si sale 4 veces a break en una sesion, son 4 filas). Mientras
+-- dura, no se analiza ni se transmite nada. `fin` queda vacio mientras la pausa
+-- sigue abierta. `sesion_inicio` es la hora de conexion de la sesion en la que
+-- ocurrio (el "timestamp" de su fila 'conexion' en eventos_conexion).
+-- --------------------------------------------------------------------------
+create table if not exists pausas (
+    id bigserial primary key,
+    estacion_id text not null,
+    empleado_nombre text,
+    sesion_inicio timestamptz not null,
+    tipo text not null check (tipo in ('almuerzo', 'break')),
+    inicio timestamptz not null default now(),
+    fin timestamptz,
+    check (fin is null or fin >= inicio)
+);
+
+create index if not exists idx_pausas_estacion on pausas(estacion_id);
+create index if not exists idx_pausas_sesion on pausas(estacion_id, sesion_inicio);
+create index if not exists idx_pausas_inicio on pausas(inicio);
+
+-- Tiempo TOTAL de cada tipo de pausa por sesion (suma todas las veces que salio).
+-- Una pausa todavia abierta cuenta hasta este momento.
+create or replace view pausas_por_sesion as
+select
+    estacion_id,
+    empleado_nombre,
+    sesion_inicio,
+    count(*) filter (where tipo = 'almuerzo') as veces_almuerzo,
+    coalesce(sum(extract(epoch from coalesce(fin, now()) - inicio)) filter (where tipo = 'almuerzo'), 0)::int as segundos_almuerzo,
+    count(*) filter (where tipo = 'break') as veces_break,
+    coalesce(sum(extract(epoch from coalesce(fin, now()) - inicio)) filter (where tipo = 'break'), 0)::int as segundos_break,
+    coalesce(sum(extract(epoch from coalesce(fin, now()) - inicio)), 0)::int as segundos_pausa_total
+from pausas
+group by estacion_id, empleado_nombre, sesion_inicio;
 
 
 -- ============================================================================
@@ -346,3 +384,8 @@ insert into lenguaje_inapropiado (termino, categoria) values
     ('usted no entiende nada', 'mal_trato'),
     ('no le puedo dar esa informacion', 'mal_trato')
 on conflict (termino) do nothing;
+
+
+
+
+

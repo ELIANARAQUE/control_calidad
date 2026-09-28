@@ -49,6 +49,12 @@ async def sesion_y_sin_cache(request, call_next):
     2) Obliga al navegador a revalidar el HTML/JS del frontend en cada carga, para que tras una
     actualizacion no siga mostrando una version vieja guardada en cache."""
     ruta = request.url.path
+    # Con una sesion ya abierta en este navegador (ej. en otra pestaña), el login no se vuelve a
+    # mostrar: se va directo a la vista de ese usuario.
+    if ruta in ("/", "/login", "/login/", "/login/index.html"):
+        sesion = info_de_token(request.cookies.get(COOKIE_SESION))
+        if sesion is not None:
+            return RedirectResponse(_HOME_POR_ROL[sesion["rol"]], status_code=303)
     home = next((h for h in _ROL_POR_HOME if ruta == h or ruta.startswith(h + "/")), None)
     if home is not None:
         sesion = info_de_token(request.cookies.get(COOKIE_SESION))

@@ -9,7 +9,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.auth import COOKIE_SESION, info_de_token
-from app.core.db import registrar_evento_conexion
+from app.core.config import settings
+from app.core.db import finalizar_pausas_abiertas, registrar_evento_conexion
 from app.core.state import EstacionInfo, bus_alertas, gestor_estaciones, nuevo_evento
 from app.services.webrtc.tracks import consumir_audio, consumir_video
 
@@ -19,12 +20,19 @@ router = APIRouter()
 # Se mantienen referencias activas para que Python no las recolecte como basura
 _peer_connections: set[RTCPeerConnection] = set()
 
-# Necesario en cuanto la estacion de empleado deja de estar en la misma LAN que el servidor
-# (ej. accediendo por un tunel/IP publica): sin un STUN, aiortc solo ofrece su IP privada
-# como candidato ICE, que nadie fuera de la red local puede alcanzar. Si tras esto algunas
-# redes muy restrictivas (NAT simetrico, firewalls corporativos estrictos) siguen sin poder
-# transmitir video, el siguiente paso es montar un servidor TURN (ej. coturn) y agregarlo aqui.
-_CONFIGURACION_ICE = RTCConfiguration(iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")])
+# STUN solo si esta configurado (WEBRTC_STUN en .env): hace falta cuando la estacion NO esta en
+# la misma LAN que el servidor (tunel/IP publica), porque sin el aiortc solo ofrece su IP
+# privada. En la red local sobra, y uno inalcanzable demoraba ~5 s cada inicio de monitoreo.
+# Para redes muy restrictivas (NAT simetrico) el siguiente paso seria un servidor TURN (coturn).
+_CONFIGURACION_ICE = RTCConfiguration(
+    iceServers=[RTCIceServer(urls=settings.webrtc_stun)] if settings.webrtc_stun else []
+)
+
+
+@router.get("/config/webrtc")
+async def config_webrtc() -> dict:
+    """Publico: la estacion de empleado usa el mismo STUN que el servidor (o ninguno)."""
+    return {"ice_servers": [{"urls": settings.webrtc_stun}] if settings.webrtc_stun else []}
 
 
 def _log_seccion_sdp(estacion_id: str, etiqueta: str, sdp: str, kind: str) -> None:
@@ -103,6 +111,9 @@ async def recibir_oferta(oferta: OfertaWebRTC, request: Request) -> RespuestaWeb
             desconexion_ya_registrada = True  # el estado puede pasar por varios de estos seguidos
             await gestor_estaciones.liberar(estacion_id)
             _peer_connections.discard(pc)
+            if info.pausa:  # se desconecto estando en almuerzo/break: la pausa termina ahi
+                info.pausa = None
+                await finalizar_pausas_abiertas(estacion_id)
             await registrar_evento_conexion(estacion_id, empleado_nombre, "desconexion")
             await bus_alertas.emitir(nuevo_evento(estacion_id, "desconexion", {"empleado": empleado_nombre}))
 
@@ -129,7 +140,7 @@ async def recibir_oferta(oferta: OfertaWebRTC, request: Request) -> RespuestaWeb
 
     _log_seccion_sdp(estacion_id, "ANSWER (servidor)", pc.localDescription.sdp, "audio")
 
-    await registrar_evento_conexion(
+    info.sesion_inicio = await registrar_evento_conexion(
         estacion_id,
         empleado_nombre,
         "conexion",

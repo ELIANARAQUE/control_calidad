@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Gestos y Expresiones — Panel de Supervisor</title>
+<title>Recuperación — Panel de Supervisor</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = {
@@ -49,7 +49,7 @@ tailwind.config = {
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 <link rel="stylesheet" href="style.css?v=32" />
 </head>
-<body class="bg-surface font-body-md text-body-md text-on-surface antialiased" data-pagina="gestos">
+<body class="bg-surface font-body-md text-body-md text-on-surface antialiased" data-pagina="recuperacion">
 
 <div class="oculto" id="appContenido">
 <aside class="fixed left-0 top-0 h-full w-64 bg-primary-container z-50 flex flex-col justify-between shadow-lg">
@@ -130,38 +130,31 @@ tailwind.config = {
         <span class="inline-block w-1.5 h-1.5 rounded-full bg-secondary-container"></span>
         <span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Consola de Control de Calidad Académica</span>
       </div>
-      <h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight mt-1">Gestos y Expresiones</h1>
-      <p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Expresiones faciales de los empleados: las negativas se revisan (fue real / falsa alarma); las positivas son informativas y solo se pueden eliminar.</p>
+      <h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight mt-1">Recuperación de contraseña</h1>
+      <p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Asigna una contraseña nueva a un empleado que olvidó la suya. Su rostro registrado no cambia: al iniciar sesión se le seguirá pidiendo la verificación facial.</p>
     </section>
 
     <section class="p-space-lg">
-      <div class="bg-surface-container-lowest rounded-xl shadow-md p-space-md flex flex-col">
-        <div class="flex items-center justify-between pb-space-sm flex-wrap gap-space-sm">
-          <div class="flex items-center gap-space-sm">
-            <div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
-              <span class="material-symbols-outlined text-[20px]">visibility</span>
-            </div>
-            <div>
-              <h3 class="font-headline-sm text-headline-sm text-on-surface font-bold" id="contadorAlertas">0 alertas de gestos</h3>
-              <p class="font-body-sm text-body-sm text-on-surface-variant">Más reciente primero</p>
-            </div>
+      <div class="bg-surface-container-lowest rounded-xl shadow-md p-space-lg flex flex-col gap-space-md max-w-xl">
+        <div class="flex items-center gap-space-sm">
+          <div class="w-8 h-8 rounded-lg bg-primary-container text-white flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">lock_reset</span>
           </div>
-          <div class="flex items-center bg-surface-container-lowest rounded-lg px-space-sm py-space-xs shadow-sm border border-surface-container-high">
-            <span class="material-symbols-outlined text-outline text-[18px] mr-space-xs">search</span>
-            <input class="bg-transparent font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none w-56" id="buscador" placeholder="Buscar por estación o texto…" type="text" />
+          <div>
+            <h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Buscar cuenta del empleado</h3>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">Escribe el correo institucional con el que se registró.</p>
           </div>
         </div>
-        <div class="flex flex-wrap gap-space-sm mt-space-sm">
-          <button class="tab-expresiones negativas activo" data-grupo="negativas" type="button">
-            <span class="material-symbols-outlined text-[18px]">sentiment_dissatisfied</span>Expresiones negativas
-            <span class="badge-pendientes-mini" id="conteoNegativas">0</span>
-          </button>
-          <button class="tab-expresiones positivas" data-grupo="positivas" type="button">
-            <span class="material-symbols-outlined text-[18px]">sentiment_very_satisfied</span>Expresiones positivas
-            <span class="badge-pendientes-mini" style="background:#1f9d6b" id="conteoPositivas">0</span>
-          </button>
-        </div>
-        <div class="flex flex-col gap-space-xs mt-space-sm" id="feed"></div>
+        <form class="flex flex-col gap-space-sm" id="formCorreo" autocomplete="off">
+          <label class="font-label-md text-label-md text-on-surface font-semibold" for="correoEmpleado">Correo del empleado</label>
+          <div class="flex gap-space-sm flex-wrap">
+            <input class="flex-1 min-w-[220px] bg-surface-container-low border border-outline-variant rounded-lg px-space-sm py-space-sm font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" id="correoEmpleado" placeholder="nombre@universitariadecolombia.edu.co" type="email" />
+            <button class="px-space-md py-space-sm rounded-lg font-label-md text-label-md font-semibold bg-primary text-white flex items-center gap-1 hover:opacity-90" type="submit">
+              <span class="material-symbols-outlined text-[18px]">search</span>Verificar correo
+            </button>
+          </div>
+          <p class="oculto font-body-sm text-body-sm text-error font-semibold" id="errorCorreo"></p>
+        </form>
       </div>
     </section>
   </main>
@@ -179,9 +172,67 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- Modal: verificando correo -->
+<div class="oculto fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-space-md" id="modalVerificando">
+  <div class="bg-surface-container-lowest rounded-xl shadow-xl p-space-lg w-full max-w-sm flex flex-col gap-space-md items-center text-center">
+    <div class="w-12 h-12 rounded-full border-4 border-surface-container-high border-t-primary animate-spin"></div>
+    <h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Verificando correo…</h3>
+    <p class="font-body-sm text-body-sm text-on-surface-variant">Buscando si existe una cuenta de empleado con ese correo.</p>
+  </div>
+</div>
+
+<!-- Modal: nueva contraseña -->
+<div class="oculto fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-space-md" id="modalClave">
+  <div class="bg-surface-container-lowest rounded-xl shadow-xl p-space-lg w-full max-w-md flex flex-col gap-space-md">
+    <div class="flex items-center gap-space-sm">
+      <span class="material-symbols-outlined text-[28px] text-primary">verified_user</span>
+      <div>
+        <h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Cuenta encontrada</h3>
+        <p class="font-body-sm text-body-sm text-on-surface-variant" id="textoCuenta"></p>
+      </div>
+    </div>
+    <form class="flex flex-col gap-space-sm" id="formClave" autocomplete="off">
+          <div class="flex flex-col gap-space-xs">
+            <label class="font-label-md text-label-md text-on-surface font-semibold" for="claveNueva">Digite nueva contraseña</label>
+            <div class="relative">
+              <input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-space-sm py-space-sm pr-10 font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" id="claveNueva" maxlength="16" type="password" autocomplete="new-password" />
+              <button aria-label="Mostrar contraseña" class="btn-ojo absolute right-2 top-1/2 -translate-y-1/2 text-outline" data-target="claveNueva" type="button">
+                <span class="material-symbols-outlined text-[20px]">visibility</span>
+              </button>
+            </div>
+          </div>
+          <div class="flex flex-col gap-space-xs">
+            <label class="font-label-md text-label-md text-on-surface font-semibold" for="confirmarClave">Confirmar contraseña</label>
+            <div class="relative">
+              <input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-space-sm py-space-sm pr-10 font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary" id="confirmarClave" maxlength="16" type="password" autocomplete="new-password" />
+              <button aria-label="Mostrar contraseña" class="btn-ojo absolute right-2 top-1/2 -translate-y-1/2 text-outline" data-target="confirmarClave" type="button">
+                <span class="material-symbols-outlined text-[20px]">visibility</span>
+              </button>
+            </div>
+          </div>
+      <span class="font-body-sm text-body-sm text-on-surface-variant">Máximo 16 caracteres, sin espacios.</span>
+      <p class="oculto font-body-sm text-body-sm text-error font-semibold" id="errorClave"></p>
+      <div class="flex justify-end gap-space-sm mt-space-xs">
+        <button class="px-space-md py-space-sm rounded-lg font-label-md text-label-md font-semibold bg-surface-container text-on-surface" id="btnCancelarClave" type="button">Cancelar</button>
+        <button class="px-space-md py-space-sm rounded-lg font-label-md text-label-md font-semibold bg-primary text-white disabled:opacity-50" id="btnCambiarClave" type="submit">Cambiar contraseña</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: confirmacion -->
+<div class="oculto fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-space-md" id="modalExito">
+  <div class="bg-surface-container-lowest rounded-xl shadow-xl p-space-lg w-full max-w-sm flex flex-col gap-space-md items-center text-center">
+    <span class="material-symbols-outlined text-[48px] text-[#10b981]">check_circle</span>
+    <h3 class="font-headline-sm text-headline-sm text-on-surface font-bold">Contraseña actualizada</h3>
+    <p class="font-body-sm text-body-sm text-on-surface-variant" id="textoExito"></p>
+    <button class="w-full px-space-md py-space-sm rounded-lg font-label-md text-label-md font-semibold bg-primary text-white" id="btnCerrarExito" type="button">Aceptar</button>
+  </div>
+</div>
+
 <div class="oculto fixed bottom-4 right-4 z-[100] bg-on-surface text-white px-space-md py-space-sm rounded-lg shadow-lg font-body-sm text-body-sm" id="toast"></div>
 
 <script src="core.js?v=33"></script>
-<script src="gestos.js?v=30"></script>
+<script src="recuperacion.js?v=1"></script>
 </body>
 </html>

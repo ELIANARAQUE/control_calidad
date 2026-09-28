@@ -26,8 +26,8 @@ const sensibilidadActiva = document.getElementById("sensibilidadActiva");
 const tiempoTurno = document.getElementById("tiempoTurno");
 const barrasPreview = document.getElementById("barrasPreview");
 const ecualizador = document.getElementById("ecualizador");
-const bannerAviso = document.getElementById("banner-aviso");
-const bannerAvisoTexto = document.getElementById("banner-aviso-texto");
+const modalComunicado = document.getElementById("modalComunicado");
+const listaComunicados = document.getElementById("listaComunicados");
 
 const CLAVE_ESTACION = "qamonitor.estacionId";
 // Guardadas por /login/ tras validar credenciales + rostro (ver frontend/login/index.html).
@@ -45,6 +45,9 @@ let audioCtx = null;
 let analiser = null;
 let inicioTurno = null;
 let intervaloTurno = null;
+let estacionActual = null; // id de la estacion que esta transmitiendo ahora
+let pausaActual = null; // { tipo, inicio } mientras esta en almuerzo o break
+let intervaloPausa = null;
 
 function setEstado(texto, tipo = "neutro") {
   subtitulo.textContent = texto;
@@ -128,6 +131,10 @@ async function iniciarPreview() {
 function animarBarras(streamAudio, barras) {
   if (!streamAudio.getAudioTracks().length) return;
   audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  // Chrome/Edge crean el AudioContext "suspendido" si no hubo un clic antes (la vista previa
+  // arranca sola al cargar): suspendido, el analizador solo devuelve ceros y las barras no se
+  // mueven. Se reanuda aqui y en el primer clic de la pagina.
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
   const fuente = audioCtx.createMediaStreamSource(streamAudio);
   const analizadorLocal = audioCtx.createAnalyser();
   analizadorLocal.fftSize = 64;
@@ -153,12 +160,38 @@ const modalCargando = document.getElementById("modalCargandoMonitoreo");
 const pasoCargando = document.getElementById("pasoCargandoMonitoreo");
 const modalError = document.getElementById("modalErrorMonitoreo");
 
-function mostrarCarga(paso) {
-  pasoCargando.textContent = paso;
+const PASOS_INICIO = 4;
+let inicioCarga = null;
+let intervaloCarga = null;
+
+function mostrarCarga(texto, paso = 1) {
+  pasoCargando.textContent = texto;
+  document.getElementById("numeroPasoMonitoreo").textContent = `Paso ${paso} de ${PASOS_INICIO}`;
+  document.getElementById("barraCargandoMonitoreo").style.width = `${Math.round(((paso - 0.5) / PASOS_INICIO) * 100)}%`;
+  if (modalCargando.classList.contains("oculto")) {
+    inicioCarga = Date.now();
+    const tiempoEl = document.getElementById("tiempoCargandoMonitoreo");
+    tiempoEl.textContent = "0 s";
+    clearInterval(intervaloCarga);
+    intervaloCarga = setInterval(() => (tiempoEl.textContent = `${Math.floor((Date.now() - inicioCarga) / 1000)} s`), 250);
+  }
   modalCargando.classList.remove("oculto");
 }
 function ocultarCarga() {
+  clearInterval(intervaloCarga);
   modalCargando.classList.add("oculto");
+}
+document.addEventListener("click", () => audioCtx?.state === "suspended" && audioCtx.resume().catch(() => {}));
+
+// El STUN lo decide el servidor (WEBRTC_STUN en su .env): en la red local no se usa ninguno y la
+// conexion arranca al instante.
+let promesaIceServers = null;
+function obtenerIceServers() {
+  promesaIceServers ??= fetch("/api/config/webrtc")
+    .then((r) => (r.ok ? r.json() : { ice_servers: [] }))
+    .then((d) => d.ice_servers || [])
+    .catch(() => []);
+  return promesaIceServers;
 }
 function mostrarError({ mensaje, sugerencia = "", codigo = "" }) {
   ocultarCarga();
@@ -290,7 +323,7 @@ async function iniciarMonitoreo({ esReconexion = false } = {}) {
   cierreIntencional = false;
 
   try {
-    mostrarCarga(esReconexion ? "Reconectando con el servidor…" : "Preparando cámara y micrófono…");
+    mostrarCarga(esReconexion ? "Reconectando con el servidor…" : "Preparando cámara y micrófono…", 1);
     try {
       stream = await obtenerStream();
     } catch (err) {
@@ -300,17 +333,17 @@ async function iniciarMonitoreo({ esReconexion = false } = {}) {
     video.srcObject = stream;
     animarBarras(stream, [...ecualizador.children]);
 
-    // El STUN es necesario en cuanto esta estacion deja de estar en la misma red local que el
-    // servidor: sin el, el navegador solo ofrece su IP privada como candidato.
-    const peer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    const peer = new RTCPeerConnection({ iceServers: await obtenerIceServers() });
     pc = peer;
     stream.getTracks().forEach((track) => peer.addTrack(track, stream));
 
-    mostrarCarga("Preparando la conexión de video…");
+    mostrarCarga("Preparando la conexión de video…", 2);
     await peer.setLocalDescription(await peer.createOffer());
-    await conTiempoLimite(esperarIceCompleto(peer), 10000, "ice").catch(() => {}); // sigue con lo que haya
+    // Los candidatos de la red local llegan en milisegundos; si hay un STUN que no responde,
+    // no se espera mas de 2 s (antes eran hasta 10 s en cada inicio).
+    await conTiempoLimite(esperarIceCompleto(peer), 2000, "ice").catch(() => {}); // sigue con lo que haya
 
-    mostrarCarga("Conectando con el servidor de monitoreo…");
+    mostrarCarga("Conectando con el servidor de monitoreo…", 3);
     let respuesta;
     try {
       respuesta = await conTiempoLimite(
@@ -350,8 +383,12 @@ async function iniciarMonitoreo({ esReconexion = false } = {}) {
     const datos = await respuesta.json();
     await peer.setRemoteDescription({ sdp: datos.sdp, type: datos.type });
     localStorage.setItem(CLAVE_ESTACION, datos.estacion_id);
+    estacionActual = datos.estacion_id;
+    // Una conexion nueva (o una reconexion) siempre arranca transmitiendo: el servidor cierra la
+    // pausa si la conexion anterior se cayo en medio de ella.
+    salirDePausaLocal();
 
-    mostrarCarga("Estableciendo la transmisión de video y audio…");
+    mostrarCarga("Estableciendo la transmisión de video y audio…", 4);
     try {
       await esperarConexion(peer, 20000);
     } catch (err) {
@@ -381,7 +418,6 @@ async function iniciarMonitoreo({ esReconexion = false } = {}) {
       intervaloTurno = setInterval(actualizarCronometro, 1000);
       actualizarCronometro();
       cargarSensibilidadActiva();
-      conectarNotificaciones();
     }
   } catch (err) {
     mostrarError({ mensaje: "Ocurrió un error inesperado al iniciar el monitoreo.", codigo: String(err) });
@@ -430,6 +466,8 @@ async function cargarSensibilidadActiva() {
 
 function detenerMonitoreo() {
   cierreIntencional = true;
+  salirDePausaLocal();
+  estacionActual = null;
   if (pc) {
     pc.close();
     pc = null;
@@ -461,17 +499,60 @@ function esperarIceCompleto(peerConnection) {
   });
 }
 
-// --- Notificaciones del supervisor (avisos generales) ---
+// --- Comunicados del supervisor ("Aviso a Estaciones") ---
+// Se escucha desde que el empleado abre su vista (no solo mientras monitorea), y el aviso sale
+// en un modal que SOLO se cierra con "Cerrar comunicado". Si llegan varios antes de cerrarlo,
+// se apilan en el mismo modal (el mas reciente arriba).
+function mostrarComunicado(datos) {
+  const hora = new Date(datos.timestamp || Date.now()).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+  const item = document.createElement("div");
+  item.className = "flex flex-col gap-1 border-l-4 border-primary pl-space-md";
+  const texto = document.createElement("p");
+  texto.className = "font-body-lg text-body-lg text-on-surface whitespace-pre-wrap";
+  texto.textContent = datos.mensaje;
+  const etiqueta = document.createElement("span");
+  etiqueta.className = "font-label-sm text-label-sm text-on-surface-variant";
+  etiqueta.textContent = `Enviado a las ${hora}`;
+  item.append(texto, etiqueta);
+  listaComunicados.prepend(item);
+  const cantidad = listaComunicados.children.length;
+  document.getElementById("tituloComunicado").textContent = cantidad > 1 ? `${cantidad} comunicados del supervisor` : "Comunicado del supervisor";
+  document.getElementById("horaComunicado").textContent = `Último: ${hora}`;
+  modalComunicado.classList.remove("oculto");
+  document.getElementById("btnCerrarComunicado").focus();
+}
+
+document.getElementById("btnCerrarComunicado").addEventListener("click", () => {
+  modalComunicado.classList.add("oculto");
+  listaComunicados.innerHTML = "";
+});
+
 function conectarNotificaciones() {
   const protocolo = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${protocolo}://${location.host}/api/ws/notificaciones`);
   ws.onmessage = (msg) => {
     const datos = JSON.parse(msg.data);
-    bannerAvisoTexto.textContent = datos.mensaje;
-    bannerAviso.classList.remove("oculto");
-    clearTimeout(conectarNotificaciones._t);
-    conectarNotificaciones._t = setTimeout(() => bannerAviso.classList.add("oculto"), 8000);
+    if (datos.tipo === "notificacion") mostrarComunicado(datos);
   };
+  // Si se cae (servidor reiniciado, red), se reconecta sola para no perder avisos.
+  ws.onclose = () => setTimeout(conectarNotificaciones, 3000);
+}
+
+// Latido: mantiene viva la sesion mientras la pagina este abierta. Si el navegador se cierra,
+// deja de llegar y el servidor cierra la sesion sola a los 2 minutos. Si el servidor ya la
+// considera vencida (401), se detiene el monitoreo y se vuelve al login.
+function iniciarLatido() {
+  setInterval(async () => {
+    try {
+      const resp = await fetch("/api/auth/latido", {
+        method: "POST",
+        headers: { "X-Auth-Token": sessionStorage.getItem(CLAVE_TOKEN) || "" },
+      });
+      if (resp.status === 401) cerrarSesionEmpleado();
+    } catch (err) {
+      // sin conexion momentanea: se reintenta en el siguiente latido
+    }
+  }, 25000);
 }
 
 async function cerrarSesionEmpleado() {
@@ -514,11 +595,19 @@ function duracionLegible(inicioIso, finIso) {
   return minutos < 60 ? `${minutos} min` : `${Math.floor(minutos / 60)} h ${minutos % 60} min`;
 }
 
+// "1 vez · 35 min" (tiempo TOTAL de ese tipo de pausa en la sesion, sumando todas las veces).
+function textoPausas(veces, segundos) {
+  if (!veces) return '<span class="text-on-surface-variant">—</span>';
+  const minutos = Math.round((segundos || 0) / 60);
+  const tiempo = minutos < 60 ? `${minutos} min` : `${Math.floor(minutos / 60)} h ${minutos % 60} min`;
+  return `${tiempo} <span class="text-on-surface-variant">(${veces} ${veces === 1 ? "vez" : "veces"})</span>`;
+}
+
 // Solo el historial de conexiones propio: sin fotos, alertas ni reportes (eso es del supervisor).
 async function cargarHistorico() {
   const tabla = document.getElementById("tablaHistorico");
   const vacio = document.getElementById("vacioHistorico");
-  tabla.innerHTML = '<tr><td colspan="6" class="py-space-md text-center text-on-surface-variant">Cargando…</td></tr>';
+  tabla.innerHTML = '<tr><td colspan="8" class="py-space-md text-center text-on-surface-variant">Cargando…</td></tr>';
   try {
     const resp = await fetch("/api/mis-sesiones", { headers: { "X-Auth-Token": sessionStorage.getItem(CLAVE_TOKEN) || "" } });
     if (resp.status === 401) return cerrarSesionEmpleado();
@@ -533,12 +622,14 @@ async function cargarHistorico() {
           <td class="py-space-sm pr-space-sm">${s.fin ? horaLegible(s.fin) : '<span class="chip-en-curso">En curso</span>'}</td>
           <td class="py-space-sm pr-space-sm">${duracionLegible(s.inicio, s.fin || new Date().toISOString())}</td>
           <td class="py-space-sm pr-space-sm">${s.sede || "—"}</td>
-          <td class="py-space-sm">${s.modulo || "—"}</td>
+          <td class="py-space-sm pr-space-sm">${s.modulo || "—"}</td>
+          <td class="py-space-sm pr-space-sm">${textoPausas(s.veces_almuerzo, s.segundos_almuerzo)}</td>
+          <td class="py-space-sm">${textoPausas(s.veces_break, s.segundos_break)}</td>
         </tr>`
       )
       .join("");
   } catch (err) {
-    tabla.innerHTML = `<tr><td colspan="6" class="py-space-md text-center text-error">No se pudo cargar el histórico (${err.message}).</td></tr>`;
+    tabla.innerHTML = `<tr><td colspan="8" class="py-space-md text-center text-error">No se pudo cargar el histórico (${err.message}).</td></tr>`;
   }
 }
 
@@ -549,24 +640,151 @@ btnIniciar.addEventListener("click", () => {
 
 btnDetener.addEventListener("click", detenerMonitoreo);
 
+// --- Pausas: salir a almuerzo / tomar un break ---
+// Pausan la transmision: la camara y el microfono dejan de enviarse (el servidor recibe negro y
+// silencio y ademas no analiza nada), y el supervisor ve "Sesion pausada". Cada pausa se guarda
+// en la base de datos con su hora de salida y de regreso.
+const TEXTO_PAUSA = {
+  almuerzo: { titulo: "Sesión pausada · tiempo de almuerzo", icono: "restaurant", estado: "En almuerzo", limiteMin: 60 },
+  break: { titulo: "Sesión pausada · tiempo de break", icono: "coffee", estado: "En break", limiteMin: null },
+};
+const pantallaPausa = document.getElementById("pantallaPausa");
+const btnReanudar = document.getElementById("btnReanudar");
+
+function transmitirPistas(activas) {
+  stream?.getTracks().forEach((pista) => (pista.enabled = activas));
+}
+
+function pintarEstadoPausa() {
+  const enPausa = !!pausaActual;
+  const info = enPausa ? TEXTO_PAUSA[pausaActual.tipo] : null;
+  pantallaPausa.classList.toggle("oculto", !enPausa);
+  // En pantallas angostas el recuadro 16:9 del video queda muy bajo para el aviso de pausa.
+  pantallaPausa.parentElement.classList.toggle("min-h-[250px]", enPausa);
+  document.getElementById("botonesPausa").classList.toggle("oculto", enPausa);
+  document.getElementById("estadoSesion").textContent = enPausa ? info.estado : "Transmitiendo";
+  document.getElementById("chipCamara").textContent = enPausa ? "En pausa" : "Activa";
+  document.getElementById("chipMicrofono").textContent = enPausa ? "En pausa" : "Transcribiendo";
+  document.getElementById("textoEnVivo").textContent = enPausa ? "EN PAUSA" : "EN VIVO";
+  setEstado(enPausa ? `${info.titulo}` : "Sesión activa · transmitiendo en vivo", "conectado");
+  clearInterval(intervaloPausa);
+  if (!enPausa) return;
+  document.getElementById("tituloPausa").textContent = info.titulo;
+  document.getElementById("iconoPausa").textContent = info.icono;
+  const reloj = document.getElementById("relojPausa");
+  const detalle = document.getElementById("detallePausa");
+  const actualizar = () => {
+    const segundos = Math.floor((Date.now() - pausaActual.desde) / 1000);
+    const mm = String(Math.floor(segundos / 60)).padStart(2, "0");
+    const ss = String(segundos % 60).padStart(2, "0");
+    reloj.textContent = `${mm}:${ss}`;
+    if (info.limiteMin) {
+      const restantes = info.limiteMin * 60 - segundos;
+      detalle.textContent = restantes >= 0
+        ? `Te quedan ${Math.ceil(restantes / 60)} min de almuerzo. La cámara y el micrófono no se están transmitiendo.`
+        : `Superaste la hora de almuerzo por ${Math.ceil(-restantes / 60)} min.`;
+      reloj.classList.toggle("text-[#fca5a5]", restantes < 0);
+    } else {
+      detalle.textContent = "La cámara y el micrófono no se están transmitiendo.";
+    }
+  };
+  actualizar();
+  intervaloPausa = setInterval(actualizar, 1000);
+}
+
+function salirDePausaLocal() {
+  pausaActual = null;
+  transmitirPistas(true);
+  pintarEstadoPausa();
+}
+
+async function llamarPausa(ruta, cuerpo) {
+  const resp = await fetch(`/api/estaciones/${encodeURIComponent(estacionActual)}/${ruta}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Auth-Token": sessionStorage.getItem(CLAVE_TOKEN) || "" },
+    body: JSON.stringify(cuerpo || {}),
+  });
+  if (resp.status === 401) {
+    cerrarSesionEmpleado();
+    throw new Error("La sesión expiró");
+  }
+  if (!resp.ok) {
+    const datos = await resp.json().catch(() => ({}));
+    throw new Error(datos.detail || "HTTP " + resp.status);
+  }
+  return resp.json();
+}
+
+document.querySelectorAll("[data-pausa]").forEach((boton) =>
+  boton.addEventListener("click", async () => {
+    if (!estacionActual || pausaActual) return;
+    const tipo = boton.dataset.pausa;
+    document.querySelectorAll("[data-pausa]").forEach((b) => (b.disabled = true));
+    try {
+      await llamarPausa("pausa", { tipo });
+      pausaActual = { tipo, desde: Date.now() };
+      transmitirPistas(false);
+      pintarEstadoPausa();
+    } catch (err) {
+      mostrarError({ mensaje: "No se pudo pausar la sesión.", sugerencia: "Revisa tu conexión e inténtalo de nuevo.", codigo: err.message });
+    } finally {
+      document.querySelectorAll("[data-pausa]").forEach((b) => (b.disabled = false));
+    }
+  })
+);
+
+btnReanudar.addEventListener("click", async () => {
+  if (!pausaActual) return;
+  btnReanudar.disabled = true;
+  try {
+    await llamarPausa("reanudar");
+    salirDePausaLocal();
+  } catch (err) {
+    mostrarError({ mensaje: "No se pudo reanudar la sesión.", sugerencia: "Revisa tu conexión e inténtalo de nuevo.", codigo: err.message });
+  } finally {
+    btnReanudar.disabled = false;
+  }
+});
+
 // El programa de escritorio (ver desktop_client/app.py) abre esta pagina con
 // ?estacion_id=... como parametro de URL: viene de un archivo que el propio programa guarda
 // junto a si mismo en el PC (estable entre reinicios, no depende del cache del navegador
 // embebido). El nombre del empleado YA NO se toma de la URL ni de un campo de texto libre:
 // ahora viene de la cuenta autenticada en /login/ (con verificacion facial), guardada en
 // sessionStorage -sin una sesion valida ahi, esta pagina redirige a /login/-.
-window.addEventListener("DOMContentLoaded", async () => {
-  const token = sessionStorage.getItem(CLAVE_TOKEN);
-  const nombreSesion = sessionStorage.getItem(CLAVE_SESION_NOMBRE);
-  if (!token || !nombreSesion) {
-    window.location.href = "/login/";
-    return;
+// Pestaña nueva: su sessionStorage esta vacio, pero la sesion abierta en otra pestaña (cookie
+// compartida) sigue valida -se recupera en vez de pedir login otra vez-.
+async function recuperarSesionDeCookie() {
+  try {
+    const resp = await fetch("/api/auth/sesion");
+    if (!resp.ok) return false;
+    const datos = await resp.json();
+    if (datos.rol !== "empleado") return false;
+    sessionStorage.setItem(CLAVE_TOKEN, datos.token);
+    sessionStorage.setItem(CLAVE_SESION_NOMBRE, datos.nombre);
+    sessionStorage.setItem(CLAVE_SESION_ROL, datos.rol);
+    return true;
+  } catch (err) {
+    return false;
   }
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+  if (!sessionStorage.getItem(CLAVE_TOKEN) || !sessionStorage.getItem(CLAVE_SESION_NOMBRE)) {
+    if (!(await recuperarSesionDeCookie())) {
+      window.location.href = "/login/";
+      return;
+    }
+  }
+  const nombreSesion = sessionStorage.getItem(CLAVE_SESION_NOMBRE);
   nombreEmpleadoEl.textContent = nombreSesion;
   const partes = nombreSesion.trim().split(/\s+/);
   document.getElementById("avatarEmpleado").textContent = (partes[0][0] + (partes[1]?.[0] || "")).toUpperCase();
 
+  iniciarLatido();
+  conectarNotificaciones();
   promesaPreview = iniciarPreview();
+  obtenerIceServers();
   await cargarOpcionesSedeModulo();
 
   const parametros = new URLSearchParams(window.location.search);

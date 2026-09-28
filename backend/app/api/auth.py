@@ -4,13 +4,15 @@ login en dos pasos -credenciales primero, verificacion facial despues- contra la
 """
 import re
 
-from fastapi import APIRouter, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app.core.auth import COOKIE_SESION, cerrar_sesion, crear_token
+from app.core.auth import COOKIE_SESION, cerrar_sesion, crear_token, info_de_token, requerir_admin, requerir_sesion
 from app.core.cuentas import (
     ErrorRegistro,
+    buscar_usuario_por_correo,
+    cambiar_clave,
     crear_usuario,
     obtener_tipos_documento,
     validar_credenciales,
@@ -22,7 +24,17 @@ router = APIRouter()
 
 _REGEX_NOMBRE = re.compile(r"^[A-Za-zÀ-ÿ\s]{1,32}$")  # letras y espacios, sin numeros/simbolos
 _REGEX_DOCUMENTO = re.compile(r"^[0-9]{1,15}$")  # solo digitos: sin letras, espacios ni simbolos
-_REGEX_CORREO = re.compile(r"^[^\s@]+@[^\s@]+\.com$")  # exige "@" y ".com", sin espacios
+DOMINIO_CORREO = "@universitariadecolombia.edu.co"
+_MENSAJE_CORREO = f"El correo no puede tener espacios y debe terminar en {DOMINIO_CORREO}"
+
+
+def correo_valido(correo: str) -> bool:
+    """Las dos unicas reglas del correo: sin espacios y terminado en el dominio institucional."""
+    return (
+        not any(c.isspace() for c in correo)
+        and correo.lower().endswith(DOMINIO_CORREO)
+        and len(correo) > len(DOMINIO_CORREO)
+    )
 
 
 @router.get("/auth/tipos-documento")
@@ -56,8 +68,8 @@ async def registro(
         raise HTTPException(
             status_code=400, detail="El número de documento debe tener máximo 15 dígitos, solo números"
         )
-    if not _REGEX_CORREO.match(correo):
-        raise HTTPException(status_code=400, detail="El correo debe contener \"@\" y terminar en \".com\", sin espacios")
+    if not correo_valido(correo):
+        raise HTTPException(status_code=400, detail=_MENSAJE_CORREO)
     if " " in clave or " " in confirmar_clave:
         raise HTTPException(status_code=400, detail="La contraseña no puede contener espacios")
     if not (1 <= len(clave) <= 16):
@@ -130,6 +142,25 @@ async def verificar_rostro(usuario_id: str = Form(...), nombre: str = Form(...),
     return respuesta
 
 
+@router.get("/auth/sesion")
+async def sesion_actual(request: Request) -> dict:
+    """Datos de la sesion abierta en ESTE navegador (por la cookie). Lo usa una pestaña nueva:
+    su sessionStorage empieza vacio, pero la cookie de sesion se comparte entre pestañas."""
+    token = request.cookies.get(COOKIE_SESION)
+    sesion = info_de_token(token)
+    if sesion is None:
+        raise HTTPException(status_code=401, detail="No hay una sesión abierta")
+    destino = "/empleado/" if sesion["rol"] == "empleado" else "/supervisor/"
+    return {"token": token, "nombre": sesion["nombre"], "rol": sesion["rol"], "destino": destino}
+
+
+@router.post("/auth/latido")
+async def latido(_sesion: dict = Depends(requerir_sesion)) -> dict:
+    """Cada pagina abierta llama aqui cada 25 s para mantener viva su sesion. Si deja de llegar
+    (se cerro el navegador), la sesion se cierra sola (ver `sesion_inactividad_segundos`)."""
+    return {"ok": True}
+
+
 @router.post("/auth/logout")
 async def logout(
     request: Request,
@@ -142,3 +173,45 @@ async def logout(
     respuesta = JSONResponse({"ok": True})
     respuesta.delete_cookie(COOKIE_SESION, path="/")
     return respuesta
+
+
+# --- Recuperacion de contraseña: un administrador se la cambia a un empleado que la olvido ---
+
+class CorreoRecuperacion(BaseModel):
+    correo: str
+
+
+class ClaveNueva(BaseModel):
+    correo: str
+    clave: str
+    confirmar_clave: str
+
+
+async def _empleado_por_correo(correo: str) -> dict:
+    usuario = await buscar_usuario_por_correo(correo.strip())
+    if usuario is None:
+        raise HTTPException(status_code=404, detail="No existe ninguna cuenta registrada con ese correo")
+    if usuario["rol"] != "empleado":
+        raise HTTPException(
+            status_code=403, detail="Ese correo es de una cuenta de administrador: desde aquí solo se recuperan cuentas de empleado"
+        )
+    return usuario
+
+
+@router.post("/auth/recuperacion/verificar")
+async def verificar_correo_recuperacion(cuerpo: CorreoRecuperacion, _admin: dict = Depends(requerir_admin)) -> dict:
+    usuario = await _empleado_por_correo(cuerpo.correo)
+    return {"existe": True, "nombre": usuario["nombre"]}
+
+
+@router.post("/auth/recuperacion/cambiar")
+async def cambiar_clave_recuperacion(cuerpo: ClaveNueva, _admin: dict = Depends(requerir_admin)) -> dict:
+    if " " in cuerpo.clave or " " in cuerpo.confirmar_clave:
+        raise HTTPException(status_code=400, detail="La contraseña no puede contener espacios")
+    if not (1 <= len(cuerpo.clave) <= 16):
+        raise HTTPException(status_code=400, detail="La contraseña debe tener entre 1 y 16 caracteres")
+    if cuerpo.clave != cuerpo.confirmar_clave:
+        raise HTTPException(status_code=400, detail="Las contraseñas no coinciden")
+    usuario = await _empleado_por_correo(cuerpo.correo)
+    await cambiar_clave(usuario["id"], cuerpo.clave)
+    return {"ok": True, "nombre": usuario["nombre"]}

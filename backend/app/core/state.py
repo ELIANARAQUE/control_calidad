@@ -20,6 +20,11 @@ class EstacionInfo:
     conectado_desde: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     peer_connection: object = None  # RTCPeerConnection, tipado como object para evitar import circular
     ultimo_snapshot_jpeg: Optional[bytes] = None
+    # Hora (ISO) de la fila 'conexion' de esta sesion en eventos_conexion.
+    sesion_inicio: Optional[str] = None
+    # Pausa en curso (almuerzo o break): {"id", "tipo", "inicio"}. Mientras exista, los loops de
+    # video y audio no analizan nada (ni alertas, ni transcripcion, ni emociones).
+    pausa: Optional[dict] = None
 
 
 class GestorEstaciones:

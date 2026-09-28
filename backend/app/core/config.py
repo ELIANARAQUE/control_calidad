@@ -7,6 +7,20 @@ class Settings(BaseSettings):
     app_name: str = "QA Monitor Local"
     max_estaciones_concurrentes: int = 10  # limite duro de conexiones WebRTC activas
 
+    # --- Sesiones ---
+    # Cada pagina abierta avisa al servidor cada 25 s ("latido"). Si pasa este tiempo sin ningun
+    # aviso (se cerro el navegador, se apago el equipo), la sesion se cierra sola: al volver a
+    # abrir el navegador hay que iniciar sesion de nuevo aunque este restaure las pestañas.
+    sesion_inactividad_segundos: int = 120
+
+    # --- WebRTC ---
+    # Servidor STUN, solo necesario si las estaciones NO estan en la misma red local que el
+    # servidor (ej. acceso por IP publica). Vacio = red local: sin STUN la conexion arranca al
+    # instante; con uno inalcanzable (redes institucionales suelen bloquearlo) el servidor
+    # tardaba ~5 s y el navegador hasta 10 s mas en empezar a transmitir.
+    # Ejemplo para habilitarlo en .env: WEBRTC_STUN=stun:stun.l.google.com:19302
+    webrtc_stun: str = ""
+
     # --- Supabase (reemplaza la base SQLite local: usuarios, alertas,
     # transcripciones, eventos de conexion, opciones configurables) ---
     # Obligatorios: sin esto el backend no arranca (ver app/core/supabase_client.py).

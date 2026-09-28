@@ -73,11 +73,20 @@ tailwind.config = {
   <p class="font-body-sm text-body-sm text-on-surface-variant max-w-4xl mx-auto text-center" id="subtitulo">Preparando conexión…</p>
 </div>
 
-<div class="oculto fixed top-20 right-4 z-[100] max-w-sm bg-secondary-container text-on-secondary-container px-space-md py-space-sm rounded-lg shadow-lg flex items-start gap-space-sm" id="banner-aviso">
-  <span class="material-symbols-outlined text-[20px] shrink-0">campaign</span>
-  <div class="flex flex-col">
-    <span class="font-label-md text-label-md font-bold">Aviso del supervisor</span>
-    <span class="font-body-sm text-body-sm" id="banner-aviso-texto"></span>
+<!-- Modal: comunicado del supervisor. Solo se cierra con "Cerrar comunicado". -->
+<div class="oculto fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-space-md" id="modalComunicado" role="alertdialog" aria-modal="true" aria-labelledby="tituloComunicado">
+  <div class="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+    <div class="bg-primary-container text-white px-space-lg py-space-md flex items-center gap-space-sm">
+      <span class="material-symbols-outlined text-[28px]">campaign</span>
+      <div class="flex flex-col">
+        <h2 class="font-headline-md text-headline-md" id="tituloComunicado">Comunicado del supervisor</h2>
+        <span class="font-label-sm text-label-sm text-white/75" id="horaComunicado"></span>
+      </div>
+    </div>
+    <div class="p-space-lg flex flex-col gap-space-md max-h-[60vh] overflow-y-auto overflow-x-hidden break-words" id="listaComunicados"></div>
+    <div class="px-space-lg pb-space-lg flex justify-end">
+      <button class="px-space-lg py-space-sm rounded-lg bg-primary text-white font-label-lg text-label-lg font-bold hover:opacity-90" id="btnCerrarComunicado" type="button">Cerrar comunicado</button>
+    </div>
   </div>
 </div>
 
@@ -217,14 +226,14 @@ tailwind.config = {
             <span class="w-2.5 h-2.5 rounded-full bg-secondary-container animate-pulse"></span>
             <div class="flex flex-col">
               <span class="font-label-sm text-label-sm leading-tight">CÁMARA</span>
-              <span class="font-label-sm text-label-sm text-secondary-container">Activa</span>
+              <span class="font-label-sm text-label-sm text-secondary-container" id="chipCamara">Activa</span>
             </div>
           </div>
           <div class="flex items-center gap-space-xs px-space-sm py-space-xs bg-white/10 rounded">
             <span class="w-2.5 h-2.5 rounded-full bg-secondary-container animate-pulse"></span>
             <div class="flex flex-col">
               <span class="font-label-sm text-label-sm leading-tight">MICRÓFONO</span>
-              <span class="font-label-sm text-label-sm text-secondary-container">Transcribiendo</span>
+              <span class="font-label-sm text-label-sm text-secondary-container" id="chipMicrofono">Transcribiendo</span>
             </div>
           </div>
           <div class="flex items-center gap-space-xs px-space-sm py-space-xs bg-white/10 rounded">
@@ -246,13 +255,23 @@ tailwind.config = {
               <span class="p-space-xs bg-surface-container-high rounded-lg text-primary"><span class="material-symbols-outlined text-[20px]">videocam</span></span>
               <h2 class="font-headline-sm text-headline-sm text-on-surface">Cámara en vivo</h2>
             </div>
-            <div class="flex items-center gap-space-xs px-space-sm py-0.5 rounded-full bg-error-container text-on-error-container">
+            <div class="flex items-center gap-space-xs px-space-sm py-0.5 rounded-full bg-error-container text-on-error-container" id="chipEnVivo">
               <span class="w-2 h-2 rounded-full bg-error animate-pulse"></span>
-              <span class="font-label-sm text-label-sm font-semibold tracking-wider">EN VIVO</span>
+              <span class="font-label-sm text-label-sm font-semibold tracking-wider" id="textoEnVivo">EN VIVO</span>
             </div>
           </div>
           <div class="relative w-full aspect-video rounded-lg overflow-hidden bg-primary shadow-inner">
             <video autoplay playsinline muted class="w-full h-full object-cover" id="video"></video>
+            <!-- Pantalla de pausa (almuerzo / break): la transmision queda detenida. -->
+            <div class="oculto absolute inset-0 bg-primary-container text-white flex flex-col items-center justify-center gap-space-xs text-center p-space-md z-10" id="pantallaPausa">
+              <span class="material-symbols-outlined text-[34px]" id="iconoPausa">restaurant</span>
+              <span class="font-headline-sm text-headline-sm" id="tituloPausa">Sesión pausada · tiempo de almuerzo</span>
+              <span class="font-mono text-[30px] font-bold leading-none" id="relojPausa">00:00</span>
+              <span class="font-body-sm text-body-sm text-white/75" id="detallePausa">La cámara y el micrófono no se están transmitiendo.</span>
+              <button class="mt-space-xs px-space-lg py-space-xs rounded-lg bg-white text-primary-container font-label-lg text-label-lg font-bold flex items-center gap-space-xs hover:opacity-90 disabled:opacity-50" id="btnReanudar" type="button">
+                <span class="material-symbols-outlined text-[20px]">play_arrow</span>Volver al trabajo
+              </button>
+            </div>
             <div class="absolute top-space-sm left-space-sm right-space-sm flex items-center justify-between pointer-events-none">
               <div class="bg-tertiary-container/85 backdrop-blur-md px-space-sm py-space-xs rounded font-label-sm text-label-sm text-white">Transmitiendo al servidor local</div>
             </div>
@@ -268,14 +287,14 @@ tailwind.config = {
               </div>
             </div>
             <div class="flex items-end gap-1.5 h-10 bg-surface-container-highest/40 px-space-md py-space-xs rounded-lg w-full sm:w-64 justify-center" id="ecualizador">
-              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
-              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
-              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
-              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
-              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
-              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
-              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
-              <div class="w-1.5 bg-secondary-container rounded-t" style="height:15%"></div>
+              <div class="w-1.5 bg-primary rounded-t transition-[height] duration-75" style="height:12%"></div>
+              <div class="w-1.5 bg-primary rounded-t transition-[height] duration-75" style="height:12%"></div>
+              <div class="w-1.5 bg-primary rounded-t transition-[height] duration-75" style="height:12%"></div>
+              <div class="w-1.5 bg-primary rounded-t transition-[height] duration-75" style="height:12%"></div>
+              <div class="w-1.5 bg-primary rounded-t transition-[height] duration-75" style="height:12%"></div>
+              <div class="w-1.5 bg-primary rounded-t transition-[height] duration-75" style="height:12%"></div>
+              <div class="w-1.5 bg-primary rounded-t transition-[height] duration-75" style="height:12%"></div>
+              <div class="w-1.5 bg-primary rounded-t transition-[height] duration-75" style="height:12%"></div>
             </div>
           </div>
         </div>
@@ -299,8 +318,16 @@ tailwind.config = {
             </div>
             <div class="bg-surface-container p-space-sm rounded-lg flex flex-col">
               <span class="font-label-sm text-label-sm text-on-surface-variant">Estado</span>
-              <span class="font-label-md text-label-md text-secondary font-semibold">Transmitiendo</span>
+              <span class="font-label-md text-label-md text-secondary font-semibold" id="estadoSesion">Transmitiendo</span>
             </div>
+          </div>
+          <div class="grid grid-cols-2 gap-space-sm" id="botonesPausa">
+            <button class="w-full flex items-center justify-center gap-space-xs px-space-sm py-space-sm rounded-lg bg-surface-container-high text-on-surface font-label-lg text-label-lg font-semibold hover:bg-surface-container-highest disabled:opacity-50" data-pausa="almuerzo" type="button">
+              <span class="material-symbols-outlined text-[20px]">restaurant</span>Salir a almuerzo
+            </button>
+            <button class="w-full flex items-center justify-center gap-space-xs px-space-sm py-space-sm rounded-lg bg-surface-container-high text-on-surface font-label-lg text-label-lg font-semibold hover:bg-surface-container-highest disabled:opacity-50" data-pausa="break" type="button">
+              <span class="material-symbols-outlined text-[20px]">coffee</span>Tomar un break
+            </button>
           </div>
           <button class="boton boton-secundario w-full flex items-center justify-center gap-space-sm" id="btnDetener">
             <span class="material-symbols-outlined text-[20px]">power_settings_new</span>
@@ -371,7 +398,9 @@ tailwind.config = {
           <th class="py-space-sm pr-space-sm">Fin</th>
           <th class="py-space-sm pr-space-sm">Duración</th>
           <th class="py-space-sm pr-space-sm">Sede</th>
-          <th class="py-space-sm">Módulo</th>
+          <th class="py-space-sm pr-space-sm">Módulo</th>
+          <th class="py-space-sm pr-space-sm">Almuerzo</th>
+          <th class="py-space-sm">Break</th>
         </tr>
       </thead>
       <tbody class="font-body-md text-body-md text-on-surface" id="tablaHistorico"></tbody>
@@ -387,6 +416,15 @@ tailwind.config = {
     <div class="w-12 h-12 rounded-full border-4 border-surface-container-high border-t-primary animate-spin"></div>
     <h2 class="font-headline-md text-headline-md text-on-surface">Iniciando monitoreo…</h2>
     <p class="font-body-sm text-body-sm text-on-surface-variant" id="pasoCargandoMonitoreo">Preparando cámara y micrófono</p>
+    <div class="w-full flex flex-col gap-space-xs">
+      <div class="w-full h-2 rounded-full bg-surface-container-high overflow-hidden">
+        <div class="h-full bg-primary rounded-full transition-[width] duration-300" id="barraCargandoMonitoreo" style="width:0%"></div>
+      </div>
+      <div class="flex justify-between font-label-sm text-label-sm text-on-surface-variant">
+        <span id="numeroPasoMonitoreo">Paso 1 de 4</span>
+        <span id="tiempoCargandoMonitoreo">0 s</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -407,6 +445,6 @@ tailwind.config = {
   </div>
 </div>
 
-<script src="client.js?v=12"></script>
+<script src="client.js?v=17"></script>
 </body>
 </html>

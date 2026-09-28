@@ -129,6 +129,15 @@ async def consumir_video(track, estacion_id: str) -> None:
             logger.info("Track de video finalizado para estacion %s", estacion_id)
             break
 
+        # En almuerzo/break no se analiza ni se muestra nada. Al volver, la ausencia se cuenta
+        # desde cero (si no, el regreso de un almuerzo dispararia una alerta de ausencia).
+        info_estacion_video = gestor_estaciones.obtener(estacion_id)
+        if info_estacion_video is not None and info_estacion_video.pausa:
+            ausente_desde = None
+            alerta_ausencia_enviada = False
+            ventana_emociones.clear()
+            continue
+
         try:
             frame_bgr_snapshot = frame.to_ndarray(format="bgr24")
         except Exception:
@@ -339,6 +348,14 @@ async def consumir_audio(track, estacion_id: str) -> None:
         except Exception:
             logger.info("Track de audio finalizado para estacion %s", estacion_id)
             break
+
+        # En almuerzo/break no se transcribe nada: se descarta lo acumulado.
+        info_estacion_audio = gestor_estaciones.obtener(estacion_id)
+        if info_estacion_audio is not None and info_estacion_audio.pausa:
+            buffer.clear()
+            muestras_acumuladas = 0
+            muestras_silencio_consecutivas = 0
+            continue
 
         contador_frames_crudos += 1
         if contador_frames_crudos <= 3 or contador_frames_crudos % 100 == 0:

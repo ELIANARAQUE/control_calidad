@@ -237,3 +237,33 @@ async def obtener_correo_descifrado(usuario_id: str) -> str | None:
     """Uso administrativo puntual (ej. mostrarle a un admin el correo de un usuario); el
     correo nunca se expone al frontend salvo que explicitamente se pida esto."""
     return await en_hilo(_obtener_correo_descifrado_sync, usuario_id)
+
+
+# ============================================================================
+# Recuperacion de contraseña (la hace un administrador desde su panel)
+# ============================================================================
+
+def _buscar_usuario_por_correo_sync(correo: str) -> dict | None:
+    fila = (
+        obtener_supabase()
+        .table("usuarios")
+        .select("id, nombre, rol")
+        .eq("correo_hash", hash_busqueda(correo))
+        .limit(1)
+        .execute()
+    )
+    return fila.data[0] if fila.data else None
+
+
+async def buscar_usuario_por_correo(correo: str) -> dict | None:
+    """`{id, nombre, rol}` de la cuenta con ese correo, o None si no existe."""
+    return await en_hilo(_buscar_usuario_por_correo_sync, correo)
+
+
+def _cambiar_clave_sync(usuario_id: str, clave_nueva: str) -> None:
+    obtener_supabase().table("usuarios").update({"clave_hash": hashear_clave(clave_nueva)}).eq("id", usuario_id).execute()
+
+
+async def cambiar_clave(usuario_id: str, clave_nueva: str) -> None:
+    """Reemplaza la contraseña de la cuenta (se guarda con bcrypt, como en el registro)."""
+    await en_hilo(_cambiar_clave_sync, usuario_id, clave_nueva)

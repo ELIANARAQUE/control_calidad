@@ -48,7 +48,7 @@ tailwind.config = {
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
-<link rel="stylesheet" href="style.css?v=30" />
+<link rel="stylesheet" href="style.css?v=32" />
 </head>
 <body class="bg-surface font-body-md text-body-md text-on-surface antialiased" data-pagina="monitoreo">
 
@@ -85,6 +85,12 @@ tailwind.config = {
       </a>
       <a class="nav-link flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-primary-container hover:bg-white/10 hover:text-white transition-colors" data-pagina="historial" href="historial.html">
         <span class="material-symbols-outlined text-[20px]">folder_supervised</span><span>Historial y Reportes</span>
+      </a>
+      <a class="nav-link flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-primary-container hover:bg-white/10 hover:text-white transition-colors" data-pagina="recuperacion" href="recuperacion.html">
+        <span class="material-symbols-outlined text-[20px]">lock_reset</span><span>Recuperación</span>
+      </a>
+      <a class="nav-link flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-primary-container hover:bg-white/10 hover:text-white transition-colors" data-pagina="sedes" href="sedes-modulos.html">
+        <span class="material-symbols-outlined text-[20px]">domain</span><span>Sedes y Módulos</span>
       </a>
     </nav>
   </div>
@@ -238,8 +244,14 @@ tailwind.config = {
           <span class="px-space-xs py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface-variant font-semibold" id="contadorTerminales">0 puestos</span>
         </div>
       </div>
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-space-lg" id="gridEstaciones"></div>
-      <p class="oculto text-center text-on-surface-variant py-space-xl" id="vacio">Todavía no se ha conectado ninguna estación.</p>
+      <!-- Lista de empleados a la izquierda; la camara en vivo solo del que se elija, a la derecha. -->
+      <div class="grid grid-cols-1 lg:grid-cols-[minmax(260px,360px)_1fr] gap-space-lg items-start">
+        <div class="lista-empleados">
+          <div class="flex flex-col" id="gridEstaciones"></div>
+          <p class="oculto text-center text-on-surface-variant py-space-lg px-space-md" id="vacio">Todavía no se ha conectado ninguna estación.</p>
+        </div>
+        <div class="tarjeta-estacion" id="visorEstacion"></div>
+      </div>
     </section>
 
     <section class="p-space-lg" id="seccion-timeline">
@@ -281,7 +293,7 @@ tailwind.config = {
 
 <div class="oculto fixed bottom-4 right-4 z-[100] bg-on-surface text-white px-space-md py-space-sm rounded-lg shadow-lg font-body-sm text-body-sm" id="toast"></div>
 
-<script src="core.js?v=30"></script>
-<script src="client.js?v=30"></script>
+<script src="core.js?v=33"></script>
+<script src="client.js?v=32"></script>
 </body>
 </html>

@@ -48,7 +48,7 @@ const Core = (() => {
 
   function obtenerEstacion(estacionId) {
     if (!estaciones.has(estacionId)) {
-      estaciones.set(estacionId, { empleado: null, sede: null, modulo: null, conectada: false, pendientes: 0, eventos: [], emocion: null });
+      estaciones.set(estacionId, { empleado: null, sede: null, modulo: null, conectada: false, pendientes: 0, eventos: [], emocion: null, pausa: null });
     }
     return estaciones.get(estacionId);
   }
@@ -70,6 +70,17 @@ const Core = (() => {
       case "desconexion":
         estacion.conectada = false;
         estacion.emocion = null;
+        estacion.pausa = null;
+        break;
+      case "pausa":
+        // Almuerzo o break: la transmision queda detenida hasta que el empleado vuelva.
+        estacion.pausa = { tipo: evento.tipo_pausa, inicio: evento.inicio || evento.timestamp };
+        estacion.emocion = null;
+        estacion.eventos.unshift(evento);
+        break;
+      case "reanudacion":
+        estacion.pausa = null;
+        estacion.eventos.unshift(evento);
         break;
       case "emocion":
         // Estado en vivo (no es un evento para el feed): solo se guarda la ultima emocion.
@@ -152,6 +163,7 @@ const Core = (() => {
         estacion.sede = item.sede;
         estacion.modulo = item.modulo;
         estacion.conectada = true;
+        estacion.pausa = item.pausa || null;
       }
     } catch (err) {
       // el panel sigue funcionando solo con lo que llegue por WebSocket a partir de ahora
@@ -245,6 +257,14 @@ const Core = (() => {
         return { icono: "login", texto: `${evento.empleado} se conectó${evento.sede ? " · " + evento.sede : ""}`, etiqueta: "Conexión" };
       case "desconexion":
         return { icono: "logout", texto: "Estación desconectada", etiqueta: "Desconexión" };
+      case "pausa":
+        return {
+          icono: evento.tipo_pausa === "almuerzo" ? "restaurant" : "coffee",
+          texto: `Sesión pausada · tiempo de ${evento.tipo_pausa === "almuerzo" ? "almuerzo" : "break"}`,
+          etiqueta: evento.tipo_pausa === "almuerzo" ? "Almuerzo" : "Break",
+        };
+      case "reanudacion":
+        return { icono: "play_arrow", texto: `Volvió del ${evento.tipo_pausa === "almuerzo" ? "almuerzo" : "break"}: transmisión reanudada`, etiqueta: "Reanudó" };
       default:
         return { icono: "info", texto: evento.detalle || JSON.stringify(evento), etiqueta: "Evento" };
     }
@@ -555,6 +575,21 @@ const Core = (() => {
     window.location.href = "/login/";
   }
 
+  // Latido: mantiene viva la sesion mientras la pagina este abierta. Si el navegador se cierra,
+  // deja de llegar y el servidor cierra la sesion sola a los 2 minutos. Si el servidor responde
+  // 401 (sesion vencida o servidor reiniciado), se vuelve al login.
+  function iniciarLatido() {
+    const latir = async () => {
+      try {
+        const resp = await apiFetch("/api/auth/latido", { method: "POST" });
+        if (resp.status === 401) cerrarSesionLocal();
+      } catch (err) {
+        // sin conexion momentanea: se reintenta en el siguiente latido
+      }
+    };
+    setInterval(latir, 25000);
+  }
+
   function marcarNavActiva() {
     const pagina = document.body.dataset.pagina;
     if (!pagina) return;
@@ -569,6 +604,7 @@ const Core = (() => {
 
     async function iniciarPagina() {
       appContenido?.classList.remove("oculto");
+      iniciarLatido();
       marcarNavActiva();
       iniciarReloj();
       iniciarAvisoGlobal();
@@ -594,13 +630,47 @@ const Core = (() => {
     const rol = sessionStorage.getItem(CLAVE_ROL);
     if (tokenSesion && rol === "admin") {
       iniciarPagina();
-    } else {
-      window.location.href = "/login/";
+      return;
     }
+    // Pestaña nueva: su sessionStorage esta vacio, pero la sesion abierta en otra pestaña
+    // (cookie compartida) sigue valida -se recupera en vez de pedir login otra vez-.
+    fetch("/api/auth/sesion")
+      .then((resp) => (resp.ok ? resp.json() : Promise.reject()))
+      .then((datos) => {
+        if (datos.rol !== "admin") throw new Error("rol");
+        sessionStorage.setItem(CLAVE_TOKEN, datos.token);
+        sessionStorage.setItem("qamonitor.nombre", datos.nombre);
+        sessionStorage.setItem(CLAVE_ROL, datos.rol);
+        tokenSesion = datos.token;
+        iniciarPagina();
+      })
+      .catch(() => (window.location.href = "/login/"));
   }
 
+  // "Sesion pausada · tiempo de almuerzo (12 min)" para mostrar en lugar del video.
+  const NOMBRE_PAUSA = { almuerzo: "almuerzo", break: "break" };
+  function textoPausa(pausa) {
+    if (!pausa) return "";
+    const minutos = Math.max(0, Math.floor((Date.now() - new Date(pausa.inicio)) / 60000));
+    return `Sesión pausada · tiempo de ${NOMBRE_PAUSA[pausa.tipo] || pausa.tipo} (${minutos} min)`;
+  }
+  function htmlPausa(pausa) {
+    return `<div class="sin-senal pausa-senal">
+      <span class="material-symbols-outlined text-[36px]">${pausa.tipo === "almuerzo" ? "restaurant" : "coffee"}</span>
+      <span data-texto-pausa>${textoPausa(pausa)}</span>
+    </div>`;
+  }
+  // Actualiza los minutos de las pausas visibles sin redibujar nada mas.
+  setInterval(() => {
+    document.querySelectorAll("[data-texto-pausa]").forEach((el) => {
+      const id = el.closest("[data-estacion-pausa]")?.dataset.estacionPausa;
+      const pausa = id && estaciones.get(id)?.pausa;
+      if (pausa) el.textContent = textoPausa(pausa);
+    });
+  }, 15000);
+
   return {
-    estaciones, contadores, conToken, apiFetch, mostrarToast,
+    estaciones, contadores, conToken, apiFetch, mostrarToast, textoPausa, htmlPausa,
     onEvento: (cb) => listenersEvento.push(cb),
     onListo: (cb) => listenersListo.push(cb),
     colorAvatar, iniciales, hace, textoEvento, crearElementoEvento, enviarVeredicto, chipEmocion,
