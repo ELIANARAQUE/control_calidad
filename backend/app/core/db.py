@@ -93,6 +93,22 @@ async def eliminar_alertas_por_tipo(tipo: str) -> list[str]:
     return await en_hilo(_eliminar_alertas_por_tipo_sync, tipo)
 
 
+def _eliminar_alerta_positiva_sync(alerta_id: int) -> tuple[bool, str | None]:
+    supabase = obtener_supabase()
+    fila = supabase.table("alertas").select("tipo, captura_path").eq("id", alerta_id).limit(1).execute().data
+    if not fila or fila[0]["tipo"] != "expresion_positiva":
+        return False, None
+    supabase.table("alertas").delete().eq("id", alerta_id).execute()
+    return True, fila[0]["captura_path"]
+
+
+async def eliminar_alerta_positiva(alerta_id: int) -> tuple[bool, str | None]:
+    """Las expresiones positivas no se califican (real/falsa): solo se pueden eliminar. Solo
+    borra alertas de ese tipo -una alerta negativa nunca se puede eliminar por aqui-. Devuelve
+    `(eliminada, captura_path)` para que quien llama borre tambien la foto del disco."""
+    return await en_hilo(_eliminar_alerta_positiva_sync, alerta_id)
+
+
 # ============================================================================
 # Transcripciones
 # ============================================================================
@@ -267,6 +283,39 @@ def _obtener_ultima_sesion_sync(estacion_id: str) -> dict | None:
         (f["timestamp"] for f in filas if f["tipo"] == "desconexion" and f["timestamp"] > inicio), None
     )
     return {"inicio": inicio, "fin": desconexion_posterior}
+
+
+def _historial_conexiones_sync(nombre: str) -> list[dict]:
+    filas = (
+        obtener_supabase()
+        .table("eventos_conexion")
+        .select("estacion_id, empleado_nombre, tipo, timestamp, sede, modulo")
+        .order("timestamp")
+        .execute()
+    ).data
+    # El fin de una sesion solo es real si le siguio un evento; si es la ultima fila de su
+    # estacion, sigue abierta ("En curso").
+    ultimos_por_estacion: dict[str, str] = {}
+    for fila in filas:
+        ultimos_por_estacion[fila["estacion_id"]] = fila["timestamp"]
+    sesiones = [s for s in _calcular_sesiones(filas) if s["nombre"] == nombre]
+    resultado = [
+        {
+            "inicio": s["inicio"],
+            "fin": None if s["inicio"] == ultimos_por_estacion.get(s["estacion_id"]) else s["fin"],
+            "sede": s["sede"],
+            "modulo": s["modulo"],
+        }
+        for s in sesiones
+    ]
+    resultado.sort(key=lambda s: s["inicio"], reverse=True)
+    return resultado
+
+
+async def historial_conexiones(nombre: str) -> list[dict]:
+    """Sesiones de monitoreo de un empleado (inicio, fin, sede, modulo): lo que ve en su
+    "Ver histórico" -sin fotos, alertas ni reportes, que son solo para el supervisor-."""
+    return await en_hilo(_historial_conexiones_sync, nombre)
 
 
 async def obtener_ultima_sesion(estacion_id: str) -> dict | None:

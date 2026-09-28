@@ -10,43 +10,44 @@ tailwind.config = {
   theme: {
     extend: {
       colors: {
-        "primary": "#2563eb", "on-primary": "#ffffff",
-        "primary-container": "#0f1d38", "on-primary-container": "#c3ccdd",
-        "secondary": "#0f9d68", "secondary-container": "#10b981", "on-secondary-container": "#00220f",
-        "tertiary-container": "#0b1c30", "on-tertiary-fixed": "#93ccff", "secondary-fixed-dim": "#7fe6bd",
-        "on-primary-fixed-variant": "#c3ccdd",
-        "error": "#dc2626", "on-error": "#ffffff", "error-container": "#fee2e2", "on-error-container": "#7f1d1d",
-        "surface": "#f4f6fb", "on-surface": "#0f1c30", "on-surface-variant": "#586174",
-        "surface-container-lowest": "#ffffff", "surface-container-low": "#eef1f8",
-        "surface-container": "#e4e9f4", "surface-container-high": "#d8e0ef", "surface-container-highest": "#cbd6ea",
-        "outline": "#8890a0", "outline-variant": "#c7cedd",
+        "primary": "#5b46d6", "on-primary": "#ffffff",
+        "primary-container": "#2b2156", "on-primary-container": "#d9d1f7",
+        "secondary": "#6d56e0", "secondary-container": "#ece6ff", "on-secondary-container": "#3b2a8f",
+        "tertiary-container": "#231a47", "on-tertiary-fixed": "#cfc5f7", "secondary-fixed-dim": "#cfc5f7",
+        "on-primary-fixed-variant": "#d9d1f7",
+        "coral": "#ef6f5e", "coral-suave": "#fdebe7",
+        "error": "#e5484d", "on-error": "#ffffff", "error-container": "#fdecea", "on-error-container": "#8a2020",
+        "surface": "#fbf5ec", "on-surface": "#2b2156", "on-surface-variant": "#6b6485",
+        "surface-container-lowest": "#ffffff", "surface-container-low": "#fdf8f1",
+        "surface-container": "#f3eefb", "surface-container-high": "#e8e0f5", "surface-container-highest": "#ddd3f0",
+        "outline": "#9b93b5", "outline-variant": "#e6ddf5",
       },
-      borderRadius: { DEFAULT: "0.375rem", lg: "0.625rem", xl: "0.9rem", full: "9999px" },
+      borderRadius: { DEFAULT: "0.5rem", lg: "0.9rem", xl: "1.4rem", full: "9999px" },
       spacing: { "space-xs": "0.35rem", "space-sm": "0.6rem", "space-md": "1rem", "space-lg": "1.5rem", "space-xl": "2.25rem" },
       fontFamily: {
-        "headline-xl": ["Space Grotesk"], "headline-lg": ["Space Grotesk"], "headline-md": ["Space Grotesk"], "headline-sm": ["Space Grotesk"],
-        "body-md": ["Manrope"], "body-sm": ["Manrope"], "body-lg": ["Manrope"],
-        "label-sm": ["JetBrains Mono"], "label-md": ["JetBrains Mono"], "label-lg": ["JetBrains Mono"],
+        "headline-xl": ["Plus Jakarta Sans"], "headline-lg": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"],
+        "body-md": ["Plus Jakarta Sans"], "body-sm": ["Plus Jakarta Sans"], "body-lg": ["Plus Jakarta Sans"],
+        "label-sm": ["Plus Jakarta Sans"], "label-md": ["Plus Jakarta Sans"], "label-lg": ["Plus Jakarta Sans"],
       },
       fontSize: {
-        "headline-xl": ["36px", { lineHeight: "44px", fontWeight: "700" }],
-        "headline-lg": ["26px", { lineHeight: "34px", fontWeight: "700" }],
-        "headline-md": ["19px", { lineHeight: "26px", fontWeight: "700" }],
+        "headline-xl": ["36px", { lineHeight: "44px", fontWeight: "800" }],
+        "headline-lg": ["28px", { lineHeight: "36px", fontWeight: "800" }],
+        "headline-md": ["20px", { lineHeight: "28px", fontWeight: "800" }],
         "headline-sm": ["15px", { lineHeight: "22px", fontWeight: "700" }],
         "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
-        "body-md": ["13.5px", { lineHeight: "20px", fontWeight: "400" }],
-        "body-sm": ["12px", { lineHeight: "18px", fontWeight: "400" }],
-        "label-lg": ["13px", { lineHeight: "18px", fontWeight: "600" }],
-        "label-md": ["11.5px", { lineHeight: "16px", fontWeight: "600" }],
-        "label-sm": ["10px", { lineHeight: "14px", fontWeight: "600" }],
+        "body-md": ["14px", { lineHeight: "21px", fontWeight: "400" }],
+        "body-sm": ["12.5px", { lineHeight: "18px", fontWeight: "400" }],
+        "label-lg": ["13px", { lineHeight: "18px", fontWeight: "700" }],
+        "label-md": ["12px", { lineHeight: "16px", fontWeight: "700" }],
+        "label-sm": ["11px", { lineHeight: "14px", fontWeight: "600" }],
       },
     },
   },
 };
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" />
-<link rel="stylesheet" href="style.css?v=20" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="style.css?v=30" />
 </head>
 <body class="bg-surface font-body-md text-body-md text-on-surface antialiased" data-pagina="gestos">
 
@@ -83,10 +84,6 @@ tailwind.config = {
       </a>
       <a class="nav-link flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-primary-container hover:bg-white/10 hover:text-white transition-colors" data-pagina="historial" href="historial.html">
         <span class="material-symbols-outlined text-[20px]">folder_supervised</span><span>Historial y Reportes</span>
-      </a>
-      <a class="nav-link flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-primary-container hover:bg-white/10 hover:text-white transition-colors" href="/empleado/" target="_blank" rel="noopener">
-        <span class="material-symbols-outlined text-[20px]">badge</span><span>Ir a Estación de Empleado</span>
-        <span class="material-symbols-outlined text-[14px] ml-auto text-white/50">open_in_new</span>
       </a>
     </nav>
   </div>
@@ -128,7 +125,7 @@ tailwind.config = {
         <span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Consola de Control de Calidad Académica</span>
       </div>
       <h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight mt-1">Gestos y Expresiones</h1>
-      <p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Alertas de movimiento brusco y expresión facial negativa.</p>
+      <p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Expresiones faciales de los empleados: las negativas se revisan (fue real / falsa alarma); las positivas son informativas y solo se pueden eliminar.</p>
     </section>
 
     <section class="p-space-lg">
@@ -147,6 +144,16 @@ tailwind.config = {
             <span class="material-symbols-outlined text-outline text-[18px] mr-space-xs">search</span>
             <input class="bg-transparent font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none w-56" id="buscador" placeholder="Buscar por estación o texto…" type="text" />
           </div>
+        </div>
+        <div class="flex flex-wrap gap-space-sm mt-space-sm">
+          <button class="tab-expresiones negativas activo" data-grupo="negativas" type="button">
+            <span class="material-symbols-outlined text-[18px]">sentiment_dissatisfied</span>Expresiones negativas
+            <span class="badge-pendientes-mini" id="conteoNegativas">0</span>
+          </button>
+          <button class="tab-expresiones positivas" data-grupo="positivas" type="button">
+            <span class="material-symbols-outlined text-[18px]">sentiment_very_satisfied</span>Expresiones positivas
+            <span class="badge-pendientes-mini" style="background:#1f9d6b" id="conteoPositivas">0</span>
+          </button>
         </div>
         <div class="flex flex-col gap-space-xs mt-space-sm" id="feed"></div>
       </div>
@@ -168,7 +175,7 @@ tailwind.config = {
 
 <div class="oculto fixed bottom-4 right-4 z-[100] bg-on-surface text-white px-space-md py-space-sm rounded-lg shadow-lg font-body-sm text-body-sm" id="toast"></div>
 
-<script src="core.js?v=20"></script>
-<script src="gestos.js?v=20"></script>
+<script src="core.js?v=30"></script>
+<script src="gestos.js?v=30"></script>
 </body>
 </html>

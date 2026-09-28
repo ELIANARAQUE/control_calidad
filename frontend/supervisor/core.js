@@ -22,7 +22,7 @@ const Core = (() => {
 
   let tokenSesion = sessionStorage.getItem(CLAVE_TOKEN);
   const estaciones = new Map(); // estacion_id -> { empleado, sede, modulo, conectada, pendientes, eventos }
-  const contadores = { pendientes: 0, transcripciones: 0, porTipo: { alerta_postura: 0, alerta_lenguaje: 0, alerta_expresion: 0, alerta_ausencia: 0 } };
+  const contadores = { pendientes: 0, transcripciones: 0, porTipo: { alerta_postura: 0, alerta_lenguaje: 0, alerta_expresion: 0, alerta_ausencia: 0, alerta_expresion_positiva: 0 } };
   const listenersEvento = [];
   const listenersListo = [];
 
@@ -93,8 +93,13 @@ const Core = (() => {
         }
         estacion.eventos.unshift(evento);
     }
+    if (evento.tipo === "alerta_expresion_positiva") {
+      contadores.porTipo.alerta_expresion_positiva = (contadores.porTipo.alerta_expresion_positiva || 0) + 1;
+    }
     if (estacion.eventos.length > MAX_EVENTOS_POR_ESTACION) estacion.eventos.length = MAX_EVENTOS_POR_ESTACION;
     listenersEvento.forEach((cb) => cb(evento));
+    // Solo los eventos EN VIVO traen `critica` (el historial no): el modal no se repite al recargar.
+    if (evento.tipo === "alerta_expresion" && evento.critica) mostrarModalCritica(evento);
   }
 
   function conectarWebSocket() {
@@ -232,6 +237,8 @@ const Core = (() => {
         return { icono: "sentiment_dissatisfied", texto: evento.detalle, etiqueta: "Expresión" };
       case "alerta_ausencia":
         return { icono: "person_off", texto: evento.detalle, etiqueta: "Ausencia" };
+      case "alerta_expresion_positiva":
+        return { icono: "sentiment_very_satisfied", texto: evento.detalle, etiqueta: "Positiva" };
       case "transcripcion":
         return { icono: "record_voice_over", texto: `"${evento.texto}"`, etiqueta: "Transcripción" };
       case "conexion":
@@ -269,7 +276,9 @@ const Core = (() => {
     const { icono, texto, etiqueta } = textoEvento(evento);
     const div = document.createElement("div");
     const esCritico = TIPOS_CON_VEREDICTO.has(evento.tipo);
-    div.className = "item-evento" + (esCritico && evento.veredicto !== "falsa_alarma" ? " critico" : "");
+    const esPositivo = evento.tipo === "alerta_expresion_positiva";
+    div.className =
+      "item-evento" + (esCritico && evento.veredicto !== "falsa_alarma" ? " critico" : "") + (esPositivo ? " positivo" : "");
 
     const hora = new Date(evento.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const nombreEstacion = estaciones.get(evento.estacion_id)?.empleado || evento.estacion_id;
@@ -309,7 +318,87 @@ const Core = (() => {
       }
       div.appendChild(acciones);
     }
+
+    // Expresiones positivas: no se califican (real/falsa), solo se pueden eliminar.
+    if (esPositivo && evento.alerta_id != null) {
+      const acciones = document.createElement("div");
+      acciones.className = "acciones";
+      const btnEliminar = document.createElement("button");
+      btnEliminar.innerHTML = '<span class="material-symbols-outlined text-[14px] align-middle">delete</span> Eliminar';
+      btnEliminar.className = "btn-veredicto btn-eliminar";
+      btnEliminar.onclick = () => eliminarPositiva(evento, acciones, alRenderizar);
+      acciones.appendChild(btnEliminar);
+      div.appendChild(acciones);
+    }
     return div;
+  }
+
+  async function eliminarPositiva(evento, contenedorAcciones, alRenderizar) {
+    if (!confirm("¿Eliminar esta expresión positiva? Esta acción no se puede deshacer.")) return;
+    contenedorAcciones.innerHTML = "Eliminando…";
+    try {
+      const resp = await apiFetch(`/api/alertas/${evento.alerta_id}`, { method: "DELETE" });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      const estacion = estaciones.get(evento.estacion_id);
+      if (estacion) estacion.eventos = estacion.eventos.filter((e) => e.alerta_id !== evento.alerta_id);
+      contadores.porTipo.alerta_expresion_positiva = Math.max(0, (contadores.porTipo.alerta_expresion_positiva || 0) - 1);
+      mostrarToast("Expresión positiva eliminada");
+      if (alRenderizar) alRenderizar();
+    } catch (err) {
+      contenedorAcciones.textContent = "Error al eliminar: " + err.message;
+    }
+  }
+
+  // --- Modal de expresion CRITICA: una expresion muy negativa pide gestion inmediata del
+  // supervisor (fue real / falsa alarma / ver la estacion), en cualquier pagina del panel. ---
+  const colaCriticas = [];
+  function mostrarModalCritica(evento) {
+    colaCriticas.push(evento);
+    if (colaCriticas.length === 1) abrirSiguienteCritica();
+  }
+  function abrirSiguienteCritica() {
+    const evento = colaCriticas[0];
+    if (!evento) return;
+    let modal = document.getElementById("modalCritica");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "modalCritica";
+      modal.className = "fixed inset-0 bg-black/55 z-[300] flex items-center justify-center p-4";
+      document.body.appendChild(modal);
+    }
+    const nombre = estaciones.get(evento.estacion_id)?.empleado || evento.estacion_id;
+    modal.innerHTML = `
+      <div class="modal-critica-pulso bg-white rounded-[1.4rem] w-full max-w-md p-6 flex flex-col gap-4 border-2 border-[#ef6f5e]">
+        <div class="flex items-center gap-3">
+          <span class="w-11 h-11 rounded-full bg-[#fdebe7] text-[#b73a2a] flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined">priority_high</span>
+          </span>
+          <div class="flex flex-col">
+            <span class="text-xs font-extrabold uppercase tracking-wider text-[#b73a2a]">Expresión crítica · requiere gestión</span>
+            <span class="text-lg font-extrabold text-[#2b2156]">${nombre}</span>
+          </div>
+        </div>
+        ${evento.captura_url ? `<img src="${conToken(evento.captura_url)}" class="w-full max-h-64 object-cover rounded-2xl border border-[#e6ddf5]" alt="Captura del momento" />` : ""}
+        <p class="text-sm text-[#3a3160]">${evento.detalle}</p>
+        <p class="text-xs text-[#6b6485]">Revisa la situación con el empleado y registra si la alerta fue real.</p>
+        <div class="flex flex-wrap gap-2 justify-end" id="accionesCritica">
+          <a class="btn-veredicto" href="estacion.html?id=${encodeURIComponent(evento.estacion_id)}">Ver estación</a>
+          <button class="btn-veredicto btn-descartar" data-veredicto="falsa_alarma" type="button">Falsa alarma</button>
+          <button class="btn-veredicto btn-confirmar" data-veredicto="confirmada" type="button">Fue real</button>
+        </div>
+        ${colaCriticas.length > 1 ? `<p class="text-xs text-[#6b6485] text-right">${colaCriticas.length - 1} alerta(s) crítica(s) más en espera</p>` : ""}
+      </div>`;
+    const acciones = modal.querySelector("#accionesCritica");
+    acciones.querySelectorAll("button[data-veredicto]").forEach((boton) => {
+      boton.onclick = async () => {
+        await enviarVeredicto(evento.estacion_id, evento.alerta_id, boton.dataset.veredicto, acciones, () => {
+          listenersEvento.forEach((cb) => cb({ tipo: "veredicto", estacion_id: evento.estacion_id }));
+        });
+        colaCriticas.shift();
+        if (colaCriticas.length) abrirSiguienteCritica();
+        else modal.remove();
+      };
+    });
   }
 
   // --- Reloj de la topbar (presente en todas las paginas) ---

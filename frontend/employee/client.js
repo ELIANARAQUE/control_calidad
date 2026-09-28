@@ -7,7 +7,8 @@ const subtitulo = document.getElementById("subtitulo");
 const config = document.getElementById("config");
 const seccionActivo = document.getElementById("seccionActivo");
 const nombreEmpleadoEl = document.getElementById("nombreEmpleado");
-const btnCerrarSesionEmpleado = document.getElementById("btnCerrarSesionEmpleado");
+const btnCerrarSesionLateral = document.getElementById("btnCerrarSesionLateral");
+let promesaPreview = Promise.resolve(); // se resuelve cuando la vista previa de camara termina de arrancar
 const sedeSelect = document.getElementById("sedeSelect");
 const moduloSelect = document.getElementById("moduloSelect");
 const checkHabeasData = document.getElementById("checkHabeasData");
@@ -147,117 +148,259 @@ function animarBarras(streamAudio, barras) {
   loop();
 }
 
+// --- Modales de carga y de error al iniciar el monitoreo ---
+const modalCargando = document.getElementById("modalCargandoMonitoreo");
+const pasoCargando = document.getElementById("pasoCargandoMonitoreo");
+const modalError = document.getElementById("modalErrorMonitoreo");
+
+function mostrarCarga(paso) {
+  pasoCargando.textContent = paso;
+  modalCargando.classList.remove("oculto");
+}
+function ocultarCarga() {
+  modalCargando.classList.add("oculto");
+}
+function mostrarError({ mensaje, sugerencia = "", codigo = "" }) {
+  ocultarCarga();
+  document.getElementById("textoErrorMonitoreo").textContent = mensaje;
+  document.getElementById("sugerenciaErrorMonitoreo").textContent = sugerencia;
+  document.getElementById("codigoErrorMonitoreo").textContent = codigo ? `Código técnico: ${codigo}` : "";
+  modalError.classList.remove("oculto");
+  btnIniciar.disabled = !checkHabeasData.checked;
+}
+document.getElementById("btnCerrarErrorMonitoreo").addEventListener("click", () => modalError.classList.add("oculto"));
+document.getElementById("btnReintentarMonitoreo").addEventListener("click", () => {
+  modalError.classList.add("oculto");
+  iniciarMonitoreo();
+});
+
+// Traduce el error del navegador al pedir la camara a un mensaje entendible.
+function errorDeCamara(err) {
+  const casos = {
+    NotAllowedError: [
+      "No diste permiso para usar la cámara y el micrófono.",
+      "Haz clic en el candado de la barra de direcciones, permite cámara y micrófono y vuelve a intentarlo.",
+    ],
+    NotReadableError: [
+      "La cámara o el micrófono están siendo usados por otra aplicación.",
+      "Cierra Teams, Zoom u otra pestaña que use la cámara, y vuelve a intentarlo.",
+    ],
+    NotFoundError: [
+      "No se encontró una cámara o un micrófono en este equipo.",
+      "Conecta una cámara web y un micrófono y vuelve a intentarlo.",
+    ],
+    OverconstrainedError: ["La cámara no soporta la configuración pedida.", "Prueba con otra cámara."],
+  };
+  const [mensaje, sugerencia] = casos[err.name] || [
+    "No se pudo acceder a la cámara o el micrófono.",
+    "Revisa que estén conectados y con permiso en el navegador.",
+  ];
+  return { mensaje, sugerencia, codigo: `${err.name}: ${err.message}` };
+}
+
+// Traduce una respuesta de error del servidor a { mensaje, sugerencia, codigo }.
+async function errorDeServidor(respuesta) {
+  const cuerpo = await respuesta.json().catch(() => ({}));
+  const detalle = Array.isArray(cuerpo.detail)
+    ? cuerpo.detail.map((d) => `${(d.loc || []).slice(-1)[0] || "dato"}: ${d.msg}`).join("; ")
+    : cuerpo.detail;
+  const sugerencias = {
+    400: "Marca la casilla de aceptación del aviso de tratamiento de datos y vuelve a intentarlo.",
+    422: "La página del navegador está desactualizada: recárgala con Ctrl + F5.",
+    503: "Se alcanzó el máximo de estaciones conectadas a la vez: espera a que otra se desconecte.",
+  };
+  return {
+    mensaje: detalle || "El servidor rechazó la conexión.",
+    sugerencia:
+      sugerencias[respuesta.status] ||
+      (respuesta.status >= 500 ? "Error interno del servidor: avisa al administrador." : ""),
+    codigo: `HTTP ${respuesta.status} en /api/offer`,
+  };
+}
+
+function conTiempoLimite(promesa, ms, mensaje) {
+  return Promise.race([promesa, new Promise((_, rechazar) => setTimeout(() => rechazar(new Error(mensaje)), ms))]);
+}
+
+function esperarConexion(peer, ms) {
+  return new Promise((resolver, rechazar) => {
+    if (peer.connectionState === "connected") return resolver();
+    const temporizador = setTimeout(() => rechazar(new Error("tiempo agotado")), ms);
+    peer.addEventListener("connectionstatechange", () => {
+      if (peer.connectionState === "connected") {
+        clearTimeout(temporizador);
+        resolver();
+      } else if (peer.connectionState === "failed") {
+        clearTimeout(temporizador);
+        rechazar(new Error("conexión fallida"));
+      }
+    });
+  });
+}
+
 // --- Sesión activa ---
-async function iniciarMonitoreo() {
+let iniciando = false;
+let cierreIntencional = false; // true cuando el propio empleado detiene: NO se reconecta solo
+let reintentosReconexion = 0;
+const MAX_REINTENTOS_RECONEXION = 3;
+
+async function obtenerStream() {
+  // Reusa la vista previa si sigue viva: pedir la camara dos veces a la vez falla en Windows
+  // con "la camara esta en uso", que era una de las causas del error intermitente.
+  await promesaPreview;
+  const vivo = streamPreview && streamPreview.getTracks().every((t) => t.readyState === "live");
+  if (vivo) return streamPreview;
+  return navigator.mediaDevices.getUserMedia({
+    video: { width: 640, height: 480, frameRate: 15 },
+    audio: { echoCancellation: true, noiseSuppression: true },
+  });
+}
+
+async function iniciarMonitoreo({ esReconexion = false } = {}) {
+  if (iniciando) return;
   const token = sessionStorage.getItem(CLAVE_TOKEN);
   const nombreEmpleado = sessionStorage.getItem(CLAVE_SESION_NOMBRE);
   if (!token || !nombreEmpleado) {
     window.location.href = "/login/";
     return;
   }
-
-  btnIniciar.disabled = true;
-  setEstado("Solicitando cámara y micrófono…");
-
-  try {
-    stream = streamPreview || (await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, frameRate: 15 },
-      audio: { echoCancellation: true, noiseSuppression: true },
-    }));
-  } catch (err) {
-    setEstado("No se pudo acceder a cámara/micrófono: " + err.message, "error");
-    btnIniciar.disabled = false;
-    return;
-  }
-
-  video.srcObject = stream;
-  animarBarras(stream, [...ecualizador.children]);
-
-  // DEBUG temporal: confirma que el stream que se va a mandar por WebRTC de verdad trae
-  // audio (si esto sale con audio:0, el problema es del navegador/mic de este equipo, no
-  // del servidor).
-  console.log("[debug-audio-navegador] pistas en el stream a transmitir:", {
-    video: stream.getVideoTracks().length,
-    audio: stream.getAudioTracks().length,
-  });
-
-  // El STUN es necesario en cuanto esta estacion deja de estar en la misma red local que el
-  // servidor (ej. accediendo desde afuera por el tunel): sin el, el navegador solo ofrece su
-  // IP privada como candidato, inalcanzable desde fuera de esta LAN.
-  pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-  stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-  pc.onconnectionstatechange = () => {
-    if (pc.connectionState === "connected") {
-      setEstado("Sesión activa · transmitiendo en vivo", "conectado");
-    } else if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
-      setEstado("Conexión perdida. Reintentando…", "error");
-      setTimeout(() => iniciarMonitoreo(), 3000);
-    }
-  };
-
-  setEstado("Negociando conexión con el servidor…");
-
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  await esperarIceCompleto(pc);
-
-  let respuesta;
-  try {
-    respuesta = await fetch("/api/offer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sdp: pc.localDescription.sdp,
-        type: pc.localDescription.type,
-        token,
-        sede: sedeSelect.value,
-        modulo: moduloSelect.value,
-        acepto_habeas_data: checkHabeasData.checked,
-        estacion_id: localStorage.getItem(CLAVE_ESTACION) || undefined,
-      }),
+  if (!checkHabeasData.checked) {
+    mostrarError({
+      mensaje: "Debes aceptar el aviso de tratamiento de datos personales para iniciar el monitoreo.",
+      sugerencia: "Marca la casilla de aceptación y vuelve a intentarlo.",
     });
+    return;
+  }
+
+  iniciando = true;
+  btnIniciar.disabled = true;
+  modalError.classList.add("oculto");
+  if (pc) {
+    cierreIntencional = true; // cerrar la conexion vieja no debe disparar otra reconexion
+    pc.close();
+    pc = null;
+  }
+  cierreIntencional = false;
+
+  try {
+    mostrarCarga(esReconexion ? "Reconectando con el servidor…" : "Preparando cámara y micrófono…");
+    try {
+      stream = await obtenerStream();
+    } catch (err) {
+      mostrarError(errorDeCamara(err));
+      return;
+    }
+    video.srcObject = stream;
+    animarBarras(stream, [...ecualizador.children]);
+
+    // El STUN es necesario en cuanto esta estacion deja de estar en la misma red local que el
+    // servidor: sin el, el navegador solo ofrece su IP privada como candidato.
+    const peer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    pc = peer;
+    stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+
+    mostrarCarga("Preparando la conexión de video…");
+    await peer.setLocalDescription(await peer.createOffer());
+    await conTiempoLimite(esperarIceCompleto(peer), 10000, "ice").catch(() => {}); // sigue con lo que haya
+
+    mostrarCarga("Conectando con el servidor de monitoreo…");
+    let respuesta;
+    try {
+      respuesta = await conTiempoLimite(
+        fetch("/api/offer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sdp: peer.localDescription.sdp,
+            type: peer.localDescription.type,
+            token,
+            sede: sedeSelect.value,
+            modulo: moduloSelect.value,
+            acepto_habeas_data: checkHabeasData.checked,
+            estacion_id: localStorage.getItem(CLAVE_ESTACION) || undefined,
+          }),
+        }),
+        20000,
+        "El servidor no respondió en 20 segundos."
+      );
+    } catch (err) {
+      mostrarError({
+        mensaje: "No se pudo contactar al servidor de monitoreo.",
+        sugerencia: "Revisa tu conexión a la red y que el servidor esté encendido.",
+        codigo: err.message,
+      });
+      return;
+    }
+    if (respuesta.status === 401) {
+      cerrarSesionEmpleado();
+      return;
+    }
+    if (!respuesta.ok) {
+      mostrarError(await errorDeServidor(respuesta));
+      return;
+    }
+
+    const datos = await respuesta.json();
+    await peer.setRemoteDescription({ sdp: datos.sdp, type: datos.type });
+    localStorage.setItem(CLAVE_ESTACION, datos.estacion_id);
+
+    mostrarCarga("Estableciendo la transmisión de video y audio…");
+    try {
+      await esperarConexion(peer, 20000);
+    } catch (err) {
+      mostrarError({
+        mensaje: "El servidor respondió, pero no se pudo establecer la transmisión de video y audio.",
+        sugerencia: "Suele ser un firewall o la red bloqueando la conexión. Reintenta; si persiste, avisa al administrador.",
+        codigo: `WebRTC: ${err.message} (estado ${peer.connectionState})`,
+      });
+      return;
+    }
+
+    peer.addEventListener("connectionstatechange", () => manejarCambioConexion(peer));
+    reintentosReconexion = 0;
+    ocultarCarga();
+
+    nombreActivo.textContent = nombreEmpleado;
+    idEstacion.textContent = datos.estacion_id;
+    sedeModuloActivo.textContent = [sedeSelect.value, moduloSelect.value].filter(Boolean).join(" · ");
+    sedeActiva.textContent = sedeSelect.value || "—";
+    moduloActivo.textContent = moduloSelect.value || "—";
+    mostrarPanelActivo(true);
+    setEstado("Sesión activa · transmitiendo en vivo", "conectado");
+
+    if (!esReconexion) {
+      inicioTurno = Date.now();
+      clearInterval(intervaloTurno);
+      intervaloTurno = setInterval(actualizarCronometro, 1000);
+      actualizarCronometro();
+      cargarSensibilidadActiva();
+      conectarNotificaciones();
+    }
   } catch (err) {
-    setEstado("No se pudo contactar al servidor: " + err.message, "error");
-    btnIniciar.disabled = false;
+    mostrarError({ mensaje: "Ocurrió un error inesperado al iniciar el monitoreo.", codigo: String(err) });
+  } finally {
+    iniciando = false;
+  }
+}
+
+// Si la conexion se cae SIN que el empleado haya detenido la sesion, se reintenta unas pocas
+// veces con el modal de carga visible; despues se muestra el error, en vez de reintentar para
+// siempre en silencio (antes, detener la sesion tambien disparaba una reconexion sola).
+function manejarCambioConexion(peer) {
+  if (peer !== pc || cierreIntencional) return;
+  if (!["failed", "disconnected", "closed"].includes(peer.connectionState)) return;
+  if (reintentosReconexion >= MAX_REINTENTOS_RECONEXION) {
+    mostrarPanelActivo(false);
+    mostrarError({
+      mensaje: "Se perdió la conexión con el servidor de monitoreo.",
+      sugerencia: "Revisa tu red y vuelve a iniciar el monitoreo.",
+      codigo: `WebRTC: estado ${peer.connectionState} tras ${reintentosReconexion} reintentos`,
+    });
     return;
   }
-
-  if (respuesta.status === 401) {
-    cerrarSesionEmpleado();
-    return;
-  }
-  if (!respuesta.ok) {
-    const detalle = await respuesta.json().catch(() => ({}));
-    // FastAPI devuelve `detail` como texto en errores propios, pero como una LISTA de objetos
-    // en errores de validacion (422): sin convertirlo, la pantalla mostraba "[object Object]".
-    const mensaje = Array.isArray(detalle.detail)
-      ? detalle.detail.map((d) => `${(d.loc || []).slice(-1)[0] || "dato"}: ${d.msg}`).join("; ")
-      : detalle.detail;
-    setEstado(mensaje || "El servidor rechazó la conexión (código " + respuesta.status + ")", "error");
-    btnIniciar.disabled = false;
-    return;
-  }
-
-  const datos = await respuesta.json();
-  await pc.setRemoteDescription({ sdp: datos.sdp, type: datos.type });
-  localStorage.setItem(CLAVE_ESTACION, datos.estacion_id);
-
-  nombreActivo.textContent = nombreEmpleado;
-  idEstacion.textContent = datos.estacion_id;
-  sedeModuloActivo.textContent = [sedeSelect.value, moduloSelect.value].filter(Boolean).join(" · ");
-  sedeActiva.textContent = sedeSelect.value || "—";
-  moduloActivo.textContent = moduloSelect.value || "—";
-  mostrarPanelActivo(true);
-  setEstado("Sesión activa · transmitiendo en vivo", "conectado");
-
-  inicioTurno = Date.now();
-  clearInterval(intervaloTurno);
-  intervaloTurno = setInterval(actualizarCronometro, 1000);
-  actualizarCronometro();
-
-  cargarSensibilidadActiva();
-  conectarNotificaciones();
+  reintentosReconexion += 1;
+  mostrarCarga(`Se perdió la conexión. Reconectando (intento ${reintentosReconexion} de ${MAX_REINTENTOS_RECONEXION})…`);
+  setTimeout(() => iniciarMonitoreo({ esReconexion: true }), 2000);
 }
 
 function actualizarCronometro() {
@@ -279,6 +422,7 @@ async function cargarSensibilidadActiva() {
 }
 
 function detenerMonitoreo() {
+  cierreIntencional = true;
   if (pc) {
     pc.close();
     pc = null;
@@ -290,8 +434,8 @@ function detenerMonitoreo() {
   clearInterval(intervaloTurno);
   mostrarPanelActivo(false);
   btnIniciar.disabled = false;
-  setEstado("Sesión finalizada. Ingresa tu nombre para reiniciar.");
-  iniciarPreview();
+  setEstado("Sesión de monitoreo finalizada.");
+  promesaPreview = iniciarPreview();
 }
 
 function esperarIceCompleto(peerConnection) {
@@ -337,11 +481,58 @@ async function cerrarSesionEmpleado() {
   sessionStorage.removeItem(CLAVE_SESION_ROL);
   window.location.href = "/login/";
 }
-for (const boton of [btnCerrarSesionEmpleado, document.getElementById("btnCerrarSesionHeader")]) {
+for (const boton of [btnCerrarSesionLateral, document.getElementById("btnCerrarSesionHeader")]) {
   boton.addEventListener("click", (ev) => {
     ev.preventDefault();
     cerrarSesionEmpleado();
   });
+}
+
+// --- Panel izquierdo: "Iniciar monitoreo" / "Ver histórico" ---
+function mostrarVista(vista) {
+  document.getElementById("vistaMonitoreo").classList.toggle("oculto", vista !== "monitoreo");
+  document.getElementById("vistaHistorico").classList.toggle("oculto", vista !== "historico");
+  document.querySelectorAll(".nav-empleado[data-vista]").forEach((b) => b.classList.toggle("activa", b.dataset.vista === vista));
+  if (vista === "historico") cargarHistorico();
+}
+document.querySelectorAll(".nav-empleado[data-vista]").forEach((b) =>
+  b.addEventListener("click", () => mostrarVista(b.dataset.vista))
+);
+
+function horaLegible(iso) {
+  return new Date(iso).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+}
+function duracionLegible(inicioIso, finIso) {
+  const minutos = Math.max(0, Math.round((new Date(finIso) - new Date(inicioIso)) / 60000));
+  return minutos < 60 ? `${minutos} min` : `${Math.floor(minutos / 60)} h ${minutos % 60} min`;
+}
+
+// Solo el historial de conexiones propio: sin fotos, alertas ni reportes (eso es del supervisor).
+async function cargarHistorico() {
+  const tabla = document.getElementById("tablaHistorico");
+  const vacio = document.getElementById("vacioHistorico");
+  tabla.innerHTML = '<tr><td colspan="6" class="py-space-md text-center text-on-surface-variant">Cargando…</td></tr>';
+  try {
+    const resp = await fetch("/api/mis-sesiones", { headers: { "X-Auth-Token": sessionStorage.getItem(CLAVE_TOKEN) || "" } });
+    if (resp.status === 401) return cerrarSesionEmpleado();
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const sesiones = await resp.json();
+    vacio.classList.toggle("oculto", sesiones.length > 0);
+    tabla.innerHTML = sesiones
+      .map(
+        (s) => `<tr class="border-b border-outline-variant">
+          <td class="py-space-sm pr-space-sm">${new Date(s.inicio).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}</td>
+          <td class="py-space-sm pr-space-sm">${horaLegible(s.inicio)}</td>
+          <td class="py-space-sm pr-space-sm">${s.fin ? horaLegible(s.fin) : '<span class="chip-en-curso">En curso</span>'}</td>
+          <td class="py-space-sm pr-space-sm">${duracionLegible(s.inicio, s.fin || new Date().toISOString())}</td>
+          <td class="py-space-sm pr-space-sm">${s.sede || "—"}</td>
+          <td class="py-space-sm">${s.modulo || "—"}</td>
+        </tr>`
+      )
+      .join("");
+  } catch (err) {
+    tabla.innerHTML = `<tr><td colspan="6" class="py-space-md text-center text-error">No se pudo cargar el histórico (${err.message}).</td></tr>`;
+  }
 }
 
 btnIniciar.addEventListener("click", () => {
@@ -365,8 +556,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
   nombreEmpleadoEl.textContent = nombreSesion;
+  const partes = nombreSesion.trim().split(/\s+/);
+  document.getElementById("avatarEmpleado").textContent = (partes[0][0] + (partes[1]?.[0] || "")).toUpperCase();
 
-  iniciarPreview();
+  promesaPreview = iniciarPreview();
   await cargarOpcionesSedeModulo();
 
   const parametros = new URLSearchParams(window.location.search);

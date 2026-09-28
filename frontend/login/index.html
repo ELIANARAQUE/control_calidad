@@ -6,74 +6,74 @@
 <title>Iniciar sesión — Control de Calidad</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 <style>
-  body { font-family: "Manrope", sans-serif; }
-  h1, h2, .titulo { font-family: "Space Grotesk", sans-serif; }
+  body { font-family: "Plus Jakarta Sans", sans-serif; }
+  h1, h2, .titulo { font-family: "Plus Jakarta Sans", sans-serif; font-weight: 800; }
   .oculto { display: none !important; }
   input::-ms-reveal, input::-ms-clear { display: none; }
 </style>
 </head>
-<body class="bg-[#0f1d38] min-h-screen flex items-center justify-center p-4">
+<body class="bg-[#fbf5ec] min-h-screen flex items-center justify-center p-4">
 
-<div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 flex flex-col gap-5" id="tarjetaLogin">
+<div class="bg-white rounded-[1.4rem] shadow-2xl w-full max-w-sm p-8 flex flex-col gap-5" id="tarjetaLogin">
   <div class="flex items-center gap-3">
-    <div class="w-11 h-11 rounded-xl bg-[#10b981] flex items-center justify-center shrink-0">
-      <span class="material-symbols-outlined text-[#0f1d38] text-[24px]">shield</span>
+    <div class="w-11 h-11 rounded-xl bg-[#5b46d6] flex items-center justify-center shrink-0">
+      <span class="material-symbols-outlined text-[#2b2156] text-[24px]">shield</span>
     </div>
     <div class="flex flex-col">
-      <span class="titulo font-bold text-[#0f1c30] text-lg leading-tight">Control de Calidad</span>
-      <span class="text-[11px] text-[#586174] uppercase tracking-wider font-semibold">Universitaria de Colombia</span>
+      <span class="titulo font-bold text-[#2b2156] text-lg leading-tight">Control de Calidad</span>
+      <span class="text-[11px] text-[#6b6485] uppercase tracking-wider font-semibold">Universitaria de Colombia</span>
     </div>
   </div>
 
   <form id="formLogin" class="flex flex-col gap-4" autocomplete="off">
     <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-[#0f1c30]" for="correo">Correo electrónico</label>
-      <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="correo" type="email" autocomplete="off" required />
+      <label class="text-sm font-semibold text-[#2b2156]" for="correo">Correo electrónico</label>
+      <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="correo" type="email" autocomplete="off" required />
     </div>
     <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-[#0f1c30]" for="clave">Contraseña</label>
+      <label class="text-sm font-semibold text-[#2b2156]" for="clave">Contraseña</label>
       <div class="relative">
-        <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 pr-10 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="clave" type="password" autocomplete="new-password" required />
-        <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-[#8890a0]" id="btnOjoClave" aria-label="Mostrar contraseña">
+        <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 pr-10 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="clave" type="password" autocomplete="new-password" required />
+        <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-[#9b93b5]" id="btnOjoClave" aria-label="Mostrar contraseña">
           <span class="material-symbols-outlined text-[20px]">visibility</span>
         </button>
       </div>
     </div>
     <p class="oculto text-sm text-red-600" id="errorLogin"></p>
-    <button class="w-full bg-[#2563eb] text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" type="submit">
+    <button class="w-full bg-[#5b46d6] text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" type="submit">
       <span class="material-symbols-outlined text-[18px]">login</span> Ingresar
     </button>
   </form>
 
-  <p class="text-center text-sm text-[#586174]">
-    ¿No tienes cuenta? <a class="text-[#2563eb] font-semibold" href="/registro/">Regístrate aquí</a>
+  <p class="text-center text-sm text-[#6b6485]">
+    ¿No tienes cuenta? <a class="text-[#5b46d6] font-semibold" href="/registro/">Regístrate aquí</a>
   </p>
 </div>
 
 <!-- Paso 2: verificacion facial -->
 <div class="oculto fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" id="modalRostro">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
-    <h2 class="titulo font-bold text-lg text-[#0f1c30] flex items-center gap-2">
+  <div class="bg-white rounded-[1.4rem] shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
+    <h2 class="titulo font-bold text-lg text-[#2b2156] flex items-center gap-2">
       <span class="material-symbols-outlined">face</span> Verificación de rostro
     </h2>
-    <p class="text-sm text-[#586174]">Activa tu cámara y mira de frente. Comprobamos que el rostro coincida con el de tu registro.</p>
+    <p class="text-sm text-[#6b6485]">Activa tu cámara y mira de frente. Comprobamos que el rostro coincida con el de tu registro.</p>
 
-    <div class="relative rounded-xl overflow-hidden bg-[#0b1c30] aspect-[3/4] max-h-[55vh] mx-auto w-full">
+    <div class="relative rounded-xl overflow-hidden bg-[#231a47] aspect-[3/4] max-h-[55vh] mx-auto w-full">
       <!-- Espejo solo visual (como un selfie); la guia analiza el video original. -->
       <video id="video" class="absolute inset-0 w-full h-full object-cover -scale-x-100" autoplay playsinline muted></video>
       <canvas id="guiaLogin" class="absolute inset-0 w-full h-full object-cover -scale-x-100 pointer-events-none"></canvas>
       <canvas id="canvas" class="hidden"></canvas>
     </div>
-    <p class="text-sm font-semibold text-center rounded-lg px-3 py-2 bg-[#eef1f8] text-[#0f1c30]" id="mensajeGuiaLogin">Cargando guía de cámara…</p>
+    <p class="text-sm font-semibold text-center rounded-lg px-3 py-2 bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="mensajeGuiaLogin">Cargando guía de cámara…</p>
 
     <p class="oculto text-sm text-red-600" id="errorRostro"></p>
     <p class="oculto text-sm text-[#0f9d68] font-semibold" id="okRostro"></p>
 
     <div class="flex gap-3">
-      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#eef1f8] text-[#0f1c30]" id="btnCancelarRostro" type="button">Cancelar</button>
-      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#10b981] text-[#00220f] flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed" id="btnCapturarRostro" type="button" disabled>
+      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="btnCancelarRostro" type="button">Cancelar</button>
+      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#5b46d6] text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed" id="btnCapturarRostro" type="button" disabled>
         <span class="material-symbols-outlined text-[18px]">camera</span> Verificar
       </button>
     </div>
@@ -121,7 +121,7 @@ function mostrarMensajeGuia(texto, valido) {
   mensajeGuia.textContent = texto;
   mensajeGuia.className =
     "text-sm font-semibold text-center rounded-lg px-3 py-2 " +
-    (valido ? "bg-[#d1fae5] text-[#065f46]" : "bg-[#eef1f8] text-[#0f1c30]");
+    (valido ? "bg-[#d1fae5] text-[#065f46]" : "bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]");
 }
 
 async function abrirCamara() {

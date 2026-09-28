@@ -1,43 +1,87 @@
-/* Complementa Tailwind (CDN, ver index.html) con lo que no cubren sus utilidades directamente. */
+/* Complementa Tailwind (CDN, ver index.html). Paleta: crema + morado + acento coral. */
 
 body {
-  font-family: "Manrope", -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+  background: #fbf5ec;
 }
 
-.font-headline-lg, .font-headline-md, .font-headline-sm {
-  font-family: "Space Grotesk", "Manrope", sans-serif;
+/* Formas decorativas de fondo, como en el diseño de referencia. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 9999px;
 }
-
-.font-label-sm, .font-label-md {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-}
+body::before { width: 420px; height: 420px; top: -150px; right: -140px; background: #e3dbff; opacity: 0.7; }
+body::after { width: 300px; height: 300px; bottom: -150px; left: -120px; background: #fbd9cf; opacity: 0.6; }
+body > * { position: relative; z-index: 1; }
+body > .fixed { position: fixed; }
 
 .oculto { display: none !important; }
 
-.punto.conectado { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3); }
-.punto.error { background: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3); }
+.punto.conectado { background: #1f9d6b; box-shadow: 0 0 0 3px rgba(31, 157, 107, 0.3); }
+.punto.error { background: #e5484d; box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.3); }
 
 .boton {
-  background: #2563eb;
+  background: #5b46d6;
   color: #fff;
-  font-weight: 700;
-  padding: 0.75rem 1rem;
-  border-radius: 0.625rem;
+  font-weight: 800;
+  padding: 0.8rem 1rem;
+  border-radius: 9999px;
   border: none;
   cursor: pointer;
   transition: background 0.15s ease, opacity 0.15s ease;
 }
-.boton:hover { background: #1d4ed8; }
-.boton:disabled { opacity: 0.5; cursor: not-allowed; }
+.boton:hover { background: #4a36c2; }
+.boton:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .boton-secundario {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: #fdebe7;
+  color: #b73a2a;
 }
-.boton-secundario:hover { background: #fecaca; }
+.boton-secundario:hover { background: #fbd9cf; }
+
+/* --- Panel izquierdo de la estacion de empleado --- */
+.panel-lateral {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+}
+.nav-empleado {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border-radius: 1rem;
+  border: 1.5px solid transparent;
+  color: #6b6485;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.nav-empleado:hover { background: #f3eefb; color: #2b2156; }
+.nav-empleado.activa {
+  background: #ece6ff;
+  border-color: #d6ccff;
+  color: #3b2a8f;
+}
+
+.chip-en-curso {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 9999px;
+  background: #e6f6ee;
+  color: #146b49;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
 
 .pie {
-  color: #8890a0;
+  color: #9b93b5;
   font-size: 0.75rem;
   line-height: 1.5;
   max-width: 42rem;
@@ -45,5 +89,5 @@ body {
 }
 
 #video, #videoPreview {
-  background: #0b1c30;
+  background: #231a47;
 }

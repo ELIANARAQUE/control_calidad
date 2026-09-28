@@ -6,10 +6,10 @@
 <title>Registro — Control de Calidad</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 <style>
-  body { font-family: "Manrope", sans-serif; }
-  h1, h2, .titulo { font-family: "Space Grotesk", sans-serif; }
+  body { font-family: "Plus Jakarta Sans", sans-serif; }
+  h1, h2, .titulo { font-family: "Plus Jakarta Sans", sans-serif; font-weight: 800; }
   .oculto { display: none !important; }
   .campo-error { border: 1px solid #dc2626 !important; }
   /* Edge/IE agregan su propio "ojo" nativo a los campos password: se oculta para que solo
@@ -17,82 +17,82 @@
   input::-ms-reveal, input::-ms-clear { display: none; }
 </style>
 </head>
-<body class="bg-[#f4f6fb] min-h-screen py-8 px-4">
+<body class="bg-[#fbf5ec] min-h-screen py-8 px-4">
 
-<div class="max-w-lg mx-auto bg-white rounded-2xl shadow-xl p-8 flex flex-col gap-5">
+<div class="max-w-lg mx-auto bg-white rounded-[1.4rem] shadow-xl p-8 flex flex-col gap-5">
   <div class="flex items-center gap-3">
-    <div class="w-11 h-11 rounded-xl bg-[#10b981] flex items-center justify-center shrink-0">
-      <span class="material-symbols-outlined text-[#0f1d38] text-[24px]">badge</span>
+    <div class="w-11 h-11 rounded-xl bg-[#5b46d6] flex items-center justify-center shrink-0">
+      <span class="material-symbols-outlined text-[#2b2156] text-[24px]">badge</span>
     </div>
     <div class="flex flex-col">
-      <span class="titulo font-bold text-[#0f1c30] text-lg leading-tight">Crear cuenta</span>
-      <span class="text-[11px] text-[#586174] uppercase tracking-wider font-semibold">Control de Calidad — Universitaria de Colombia</span>
+      <span class="titulo font-bold text-[#2b2156] text-lg leading-tight">Crear cuenta</span>
+      <span class="text-[11px] text-[#6b6485] uppercase tracking-wider font-semibold">Control de Calidad — Universitaria de Colombia</span>
     </div>
   </div>
 
   <form id="formRegistro" class="flex flex-col gap-4" novalidate autocomplete="off">
     <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-[#0f1c30]" for="nombre">Nombre completo</label>
-      <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="nombre" maxlength="32" placeholder="Solo letras y espacios" required />
-      <span class="text-xs text-[#8890a0]" id="ayudaNombre">Máximo 32 caracteres, sin números ni símbolos.</span>
+      <label class="text-sm font-semibold text-[#2b2156]" for="nombre">Nombre completo</label>
+      <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="nombre" maxlength="32" placeholder="Solo letras y espacios" required />
+      <span class="text-xs text-[#9b93b5]" id="ayudaNombre">Máximo 32 caracteres, sin números ni símbolos.</span>
     </div>
 
     <div class="grid grid-cols-2 gap-3">
       <div class="flex flex-col gap-1">
-        <label class="text-sm font-semibold text-[#0f1c30]" for="tipoDocumento">Tipo de documento</label>
-        <select class="w-full bg-[#eef1f8] rounded-lg px-3 py-2.5 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="tipoDocumento" required></select>
+        <label class="text-sm font-semibold text-[#2b2156]" for="tipoDocumento">Tipo de documento</label>
+        <select class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-3 py-2.5 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="tipoDocumento" required></select>
       </div>
       <div class="flex flex-col gap-1">
-        <label class="text-sm font-semibold text-[#0f1c30]" for="numeroDocumento">Número de documento</label>
-        <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="numeroDocumento" maxlength="15" inputmode="numeric" placeholder="Solo números" required />
+        <label class="text-sm font-semibold text-[#2b2156]" for="numeroDocumento">Número de documento</label>
+        <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="numeroDocumento" maxlength="15" inputmode="numeric" placeholder="Solo números" required />
       </div>
     </div>
 
     <div class="flex flex-col gap-1">
-      <label class="text-sm font-semibold text-[#0f1c30]" for="correo">Correo electrónico</label>
-      <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="correo" type="email" placeholder="nombre@dominio.com" required />
+      <label class="text-sm font-semibold text-[#2b2156]" for="correo">Correo electrónico</label>
+      <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="correo" type="email" placeholder="nombre@dominio.com" required />
     </div>
 
     <div class="grid grid-cols-2 gap-3">
       <div class="flex flex-col gap-1">
-        <label class="text-sm font-semibold text-[#0f1c30]" for="clave">Contraseña</label>
+        <label class="text-sm font-semibold text-[#2b2156]" for="clave">Contraseña</label>
         <div class="relative">
-          <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 pr-10 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="clave" type="password" maxlength="16" autocomplete="new-password" required />
-          <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-[#8890a0] btn-ojo" data-target="clave">
+          <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 pr-10 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="clave" type="password" maxlength="16" autocomplete="new-password" required />
+          <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-[#9b93b5] btn-ojo" data-target="clave">
             <span class="material-symbols-outlined text-[20px]">visibility</span>
           </button>
         </div>
       </div>
       <div class="flex flex-col gap-1">
-        <label class="text-sm font-semibold text-[#0f1c30]" for="confirmarClave">Confirmar contraseña</label>
+        <label class="text-sm font-semibold text-[#2b2156]" for="confirmarClave">Confirmar contraseña</label>
         <div class="relative">
-          <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 pr-10 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="confirmarClave" type="password" maxlength="16" autocomplete="new-password" required />
-          <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-[#8890a0] btn-ojo" data-target="confirmarClave">
+          <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 pr-10 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="confirmarClave" type="password" maxlength="16" autocomplete="new-password" required />
+          <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-[#9b93b5] btn-ojo" data-target="confirmarClave">
             <span class="material-symbols-outlined text-[20px]">visibility</span>
           </button>
         </div>
       </div>
     </div>
-    <span class="text-xs text-[#8890a0] -mt-2">Máximo 16 caracteres, sin espacios.</span>
+    <span class="text-xs text-[#9b93b5] -mt-2">Máximo 16 caracteres, sin espacios.</span>
 
     <div class="flex flex-col gap-2">
-      <span class="text-sm font-semibold text-[#0f1c30]">Fotos de rostro (para iniciar sesión)</span>
-      <span class="text-xs text-[#8890a0] -mt-1">Se necesitan tres fotos: de frente, perfil izquierdo y perfil derecho.</span>
+      <span class="text-sm font-semibold text-[#2b2156]">Fotos de rostro (para iniciar sesión)</span>
+      <span class="text-xs text-[#9b93b5] -mt-1">Se necesitan tres fotos: de frente, perfil izquierdo y perfil derecho.</span>
       <div class="grid grid-cols-3 gap-3">
-        <button type="button" class="slot-foto flex flex-col items-center justify-center gap-1 border-2 border-dashed border-[#c7cedd] rounded-xl h-28 text-[#586174] hover:border-[#10b981] hover:text-[#0f9d68] transition-colors overflow-hidden" data-angulo="frontal">
+        <button type="button" class="slot-foto flex flex-col items-center justify-center gap-1 border-2 border-dashed border-[#d9cff0] rounded-xl h-28 text-[#6b6485] hover:border-[#5b46d6] hover:text-[#5b46d6] transition-colors overflow-hidden" data-angulo="frontal">
           <span class="material-symbols-outlined">face</span><span class="text-xs font-semibold">Frontal</span>
         </button>
-        <button type="button" class="slot-foto flex flex-col items-center justify-center gap-1 border-2 border-dashed border-[#c7cedd] rounded-xl h-28 text-[#586174] hover:border-[#10b981] hover:text-[#0f9d68] transition-colors overflow-hidden" data-angulo="izquierda">
+        <button type="button" class="slot-foto flex flex-col items-center justify-center gap-1 border-2 border-dashed border-[#d9cff0] rounded-xl h-28 text-[#6b6485] hover:border-[#5b46d6] hover:text-[#5b46d6] transition-colors overflow-hidden" data-angulo="izquierda">
           <span class="material-symbols-outlined">face_left</span><span class="text-xs font-semibold">Lateral izquierda</span>
         </button>
-        <button type="button" class="slot-foto flex flex-col items-center justify-center gap-1 border-2 border-dashed border-[#c7cedd] rounded-xl h-28 text-[#586174] hover:border-[#10b981] hover:text-[#0f9d68] transition-colors overflow-hidden" data-angulo="derecha">
+        <button type="button" class="slot-foto flex flex-col items-center justify-center gap-1 border-2 border-dashed border-[#d9cff0] rounded-xl h-28 text-[#6b6485] hover:border-[#5b46d6] hover:text-[#5b46d6] transition-colors overflow-hidden" data-angulo="derecha">
           <span class="material-symbols-outlined">face_right</span><span class="text-xs font-semibold">Lateral derecha</span>
         </button>
       </div>
     </div>
 
     <div class="flex flex-col gap-2">
-      <span class="text-sm font-semibold text-[#0f1c30]">Seleccione rol</span>
+      <span class="text-sm font-semibold text-[#2b2156]">Seleccione rol</span>
       <div class="flex gap-4">
         <label class="flex items-center gap-2 cursor-pointer">
           <input type="radio" name="rol" value="empleado" checked /> Empleado
@@ -105,81 +105,81 @@
 
     <p class="oculto text-sm text-red-600" id="errorRegistro"></p>
 
-    <button class="w-full bg-[#2563eb] text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" type="submit">
+    <button class="w-full bg-[#5b46d6] text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" type="submit">
       <span class="material-symbols-outlined text-[18px]">how_to_reg</span> Crear cuenta
     </button>
   </form>
 
-  <p class="text-center text-sm text-[#586174]">
-    ¿Ya tienes cuenta? <a class="text-[#2563eb] font-semibold" href="/login/">Inicia sesión aquí</a>
+  <p class="text-center text-sm text-[#6b6485]">
+    ¿Ya tienes cuenta? <a class="text-[#5b46d6] font-semibold" href="/login/">Inicia sesión aquí</a>
   </p>
 </div>
 
 <!-- Modal: subir/tomar foto -->
 <div class="oculto fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" id="modalFoto">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
-    <h2 class="titulo font-bold text-lg text-[#0f1c30]" id="tituloModalFoto">Subir foto</h2>
+  <div class="bg-white rounded-[1.4rem] shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
+    <h2 class="titulo font-bold text-lg text-[#2b2156]" id="tituloModalFoto">Subir foto</h2>
     <p class="text-sm text-[#b45309] bg-[#fef3c7] rounded-lg px-3 py-2">
       Recuerde estar en un sitio iluminado y, de ser posible, con un fondo blanco.
     </p>
-    <p class="text-sm text-[#0f1c30] font-semibold" id="instruccionAngulo"></p>
+    <p class="text-sm text-[#2b2156] font-semibold" id="instruccionAngulo"></p>
 
     <div class="flex gap-3">
-      <button class="flex-1 py-2 rounded-lg font-semibold bg-[#eef1f8] text-[#0f1c30]" id="btnModoArchivo" type="button">Desde el computador</button>
-      <button class="flex-1 py-2 rounded-lg font-semibold bg-[#eef1f8] text-[#0f1c30]" id="btnModoCamara" type="button">Tomar foto</button>
+      <button class="flex-1 py-2 rounded-lg font-semibold bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="btnModoArchivo" type="button">Desde el computador</button>
+      <button class="flex-1 py-2 rounded-lg font-semibold bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="btnModoCamara" type="button">Tomar foto</button>
     </div>
 
     <input class="oculto" type="file" id="inputArchivoFoto" accept="image/*" />
 
     <div class="oculto flex flex-col gap-2" id="wrapCamaraRegistro">
-      <div class="relative rounded-xl overflow-hidden bg-[#0b1c30] aspect-[3/4] max-h-[55vh] mx-auto w-full">
+      <div class="relative rounded-xl overflow-hidden bg-[#231a47] aspect-[3/4] max-h-[55vh] mx-auto w-full">
         <!-- Espejo (scaleX(-1)) solo visual, como un selfie: la guia analiza el video original. -->
         <video id="videoRegistro" class="absolute inset-0 w-full h-full object-cover -scale-x-100" autoplay playsinline muted></video>
         <canvas id="guiaRegistro" class="absolute inset-0 w-full h-full object-cover -scale-x-100 pointer-events-none"></canvas>
       </div>
-      <p class="text-sm font-semibold text-center rounded-lg px-3 py-2 bg-[#eef1f8] text-[#0f1c30]" id="mensajeGuiaRegistro">Cargando guía de cámara…</p>
+      <p class="text-sm font-semibold text-center rounded-lg px-3 py-2 bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="mensajeGuiaRegistro">Cargando guía de cámara…</p>
       <canvas id="canvasRegistro" class="hidden"></canvas>
     </div>
 
     <div class="flex gap-3">
-      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#eef1f8] text-[#0f1c30]" id="btnCancelarFoto" type="button">Cancelar</button>
-      <button class="oculto flex-1 py-2.5 rounded-lg font-semibold bg-[#10b981] text-[#00220f] disabled:opacity-40 disabled:cursor-not-allowed" id="btnTomarFoto" type="button" disabled>Tomar foto</button>
+      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="btnCancelarFoto" type="button">Cancelar</button>
+      <button class="oculto flex-1 py-2.5 rounded-lg font-semibold bg-[#5b46d6] text-white disabled:opacity-40 disabled:cursor-not-allowed" id="btnTomarFoto" type="button" disabled>Tomar foto</button>
     </div>
   </div>
 </div>
 
 <!-- Modal: clave de super-admin (solo si eligio rol Administrador) -->
 <div class="oculto fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" id="modalSuperAdmin">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
-    <h2 class="titulo font-bold text-lg text-[#0f1c30] flex items-center gap-2">
+  <div class="bg-white rounded-[1.4rem] shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+    <h2 class="titulo font-bold text-lg text-[#2b2156] flex items-center gap-2">
       <span class="material-symbols-outlined">admin_panel_settings</span> Confirmación de administrador
     </h2>
-    <p class="text-sm text-[#586174]">Para crear una cuenta de administrador, ingresa la clave de super-admin.</p>
-    <input class="w-full bg-[#eef1f8] rounded-lg px-4 py-2.5 text-[#0f1c30] focus:outline-none focus:ring-2 focus:ring-[#10b981]" id="claveSuperAdmin" type="password" placeholder="Clave de super-admin" />
+    <p class="text-sm text-[#6b6485]">Para crear una cuenta de administrador, ingresa la clave de super-admin.</p>
+    <input class="w-full bg-[#fdf8f1] border border-[#e6ddf5] rounded-lg px-4 py-2.5 text-[#2b2156] focus:outline-none focus:ring-2 focus:ring-[#5b46d6]" id="claveSuperAdmin" type="password" placeholder="Clave de super-admin" />
     <p class="oculto text-sm text-red-600" id="errorSuperAdmin"></p>
     <div class="flex gap-3">
-      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#eef1f8] text-[#0f1c30]" id="btnCancelarSuperAdmin" type="button">Cancelar</button>
-      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#2563eb] text-white" id="btnConfirmarSuperAdmin" type="button">Confirmar</button>
+      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#fdf8f1] border border-[#e6ddf5] text-[#2b2156]" id="btnCancelarSuperAdmin" type="button">Cancelar</button>
+      <button class="flex-1 py-2.5 rounded-lg font-semibold bg-[#5b46d6] text-white" id="btnConfirmarSuperAdmin" type="button">Confirmar</button>
     </div>
   </div>
 </div>
 
 <!-- Modal: procesando (el analisis de las 3 fotos tarda varios segundos) -->
 <div class="oculto fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" id="modalCargando">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 items-center text-center">
-    <div class="w-12 h-12 rounded-full border-4 border-[#e4e9f4] border-t-[#10b981] animate-spin"></div>
-    <h2 class="titulo font-bold text-lg text-[#0f1c30]">Cargando y analizando imágenes…</h2>
-    <p class="text-sm text-[#586174]">Estamos verificando tu rostro en las tres fotos. Esto puede tardar unos segundos, no cierres esta página.</p>
+  <div class="bg-white rounded-[1.4rem] shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 items-center text-center">
+    <div class="w-12 h-12 rounded-full border-4 border-[#e8e0f5] border-t-[#10b981] animate-spin"></div>
+    <h2 class="titulo font-bold text-lg text-[#2b2156]">Cargando y analizando imágenes…</h2>
+    <p class="text-sm text-[#6b6485]">Estamos verificando tu rostro en las tres fotos. Esto puede tardar unos segundos, no cierres esta página.</p>
   </div>
 </div>
 
 <!-- Modal: confirmacion final -->
 <div class="oculto fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" id="modalExito">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 items-center text-center">
-    <span class="material-symbols-outlined text-[48px] text-[#10b981]">check_circle</span>
-    <h2 class="titulo font-bold text-lg text-[#0f1c30]">Cuenta creada con éxito</h2>
-    <p class="text-sm text-[#586174]" id="textoExito">Ya puedes iniciar sesión.</p>
-    <button class="w-full py-2.5 rounded-lg font-semibold bg-[#2563eb] text-white" id="btnIrLogin" type="button">Ir a iniciar sesión</button>
+  <div class="bg-white rounded-[1.4rem] shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4 items-center text-center">
+    <span class="material-symbols-outlined text-[48px] text-[#5b46d6]">check_circle</span>
+    <h2 class="titulo font-bold text-lg text-[#2b2156]">Cuenta creada con éxito</h2>
+    <p class="text-sm text-[#6b6485]" id="textoExito">Ya puedes iniciar sesión.</p>
+    <button class="w-full py-2.5 rounded-lg font-semibold bg-[#5b46d6] text-white" id="btnIrLogin" type="button">Ir a iniciar sesión</button>
   </div>
 </div>
 

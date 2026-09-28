@@ -106,6 +106,7 @@ async def consumir_video(track, estacion_id: str) -> None:
     # alertar, para no disparar por un solo frame ruidoso.
     racha_emocion = 0
     ultimo_ts_alerta_emocion = 0.0
+    ultimo_ts_alerta_positiva = 0.0
     ventana_emociones: deque[dict[str, float]] = deque(maxlen=settings.emocion_ventana_frames)
 
     # Deteccion de ausencia: si la camara deja de ver a alguien por mas de
@@ -250,7 +251,11 @@ async def consumir_video(track, estacion_id: str) -> None:
                         racha_emocion = 0
                         ventana_emociones.clear()
 
-                        detalle = f"Expresión facial: {emocion_negativa} ({puntaje_negativo:.0%} de expresión negativa)"
+                        critica = puntaje_negativo >= settings.emocion_umbral_critico
+                        detalle = (
+                            f"{'CRÍTICA — ' if critica else ''}Expresión facial: {emocion_negativa} "
+                            f"({puntaje_negativo:.0%} de expresión negativa)"
+                        )
                         # `recorte_cara` es justo el que uso el clasificador para esta alerta:
                         # es la foto mas relevante posible (la cara en el momento exacto del gesto).
                         captura_path = await loop.run_in_executor(
@@ -265,6 +270,32 @@ async def consumir_video(track, estacion_id: str) -> None:
                                     "detalle": detalle,
                                     "alerta_id": alerta_id,
                                     "veredicto": None,
+                                    "critica": critica,
+                                    "captura_url": f"/api/alertas/{alerta_id}/captura.jpg" if captura_path else None,
+                                },
+                            )
+                        )
+
+                    # Expresion positiva (felicidad muy clara): se registra aparte, solo informativa.
+                    if (
+                        promedio.get("felicidad", 0.0) >= settings.emocion_umbral_positivo
+                        and (ahora - ultimo_ts_alerta_positiva) >= settings.emocion_positiva_cooldown_segundos
+                    ):
+                        ultimo_ts_alerta_positiva = ahora
+                        detalle = f"Expresión positiva: felicidad ({promedio['felicidad']:.0%})"
+                        captura_path = await loop.run_in_executor(
+                            _executor, _guardar_captura_bgr, estacion_id, "positiva", recorte_cara
+                        )
+                        alerta_id = await registrar_alerta(
+                            estacion_id, detalle, tipo="expresion_positiva", captura_path=captura_path
+                        )
+                        await bus_alertas.emitir(
+                            nuevo_evento(
+                                estacion_id,
+                                "alerta_expresion_positiva",
+                                {
+                                    "detalle": detalle,
+                                    "alerta_id": alerta_id,
                                     "captura_url": f"/api/alertas/{alerta_id}/captura.jpg" if captura_path else None,
                                 },
                             )

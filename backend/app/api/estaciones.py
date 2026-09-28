@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from app.core.auth import requerir_admin
+from app.core.auth import requerir_admin, requerir_sesion
 from app.core.db import (
     guardar_opciones,
+    historial_conexiones,
     listar_eventos_recientes,
     listar_trabajadores_para_informe,
     obtener_opciones,
@@ -61,6 +62,12 @@ async def listar_estaciones(_admin: str = Depends(requerir_admin)) -> list[dict]
         }
         for info in gestor_estaciones.listar()
     ]
+
+
+@router.get("/mis-sesiones")
+async def mis_sesiones(sesion: dict = Depends(requerir_sesion)) -> list[dict]:
+    """Historial de conexiones del empleado que inicio sesion (solo las suyas)."""
+    return await historial_conexiones(sesion["nombre"])
 
 
 @router.get("/eventos/recientes")

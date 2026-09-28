@@ -1,68 +1,134 @@
-/* Complementa Tailwind (cargado por CDN en index.html) con lo que las utilidades no cubren:
-   fuentes de marca, estados activos de navegación/filtros, y las tarjetas generadas por JS
-   para cada estación/evento (más simple mantenerlas en CSS con nombres claros en español
-   que repetir docenas de clases utilitarias en cada plantilla de client.js). */
+/* Complementa Tailwind (cargado por CDN en cada pagina) con lo que las utilidades no cubren:
+   estados activos de navegacion/filtros y las tarjetas generadas por JS para cada
+   estacion/evento. Paleta: crema + morado + acento coral, esquinas muy redondeadas. */
+
+:root {
+  --crema: #fbf5ec;
+  --morado: #5b46d6;
+  --morado-oscuro: #2b2156;
+  --lavanda: #ece6ff;
+  --lavanda-borde: #e6ddf5;
+  --coral: #ef6f5e;
+  --coral-suave: #fdebe7;
+  --texto: #2b2156;
+  --texto-suave: #6b6485;
+  --verde: #1f9d6b;
+  --rojo: #e5484d;
+}
 
 body {
-  font-family: "Manrope", -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+  background: var(--crema);
 }
 
-.font-headline-xl, .font-headline-lg, .font-headline-md, .font-headline-sm {
-  font-family: "Space Grotesk", "Manrope", sans-serif;
+/* Formas decorativas de fondo (circulo morado arriba a la derecha, mancha coral abajo). */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 9999px;
 }
-
-.font-label-sm, .font-label-md, .font-label-lg {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+body::before {
+  width: 420px;
+  height: 420px;
+  top: -160px;
+  right: -140px;
+  background: #e3dbff;
+  opacity: 0.7;
+}
+body::after {
+  width: 300px;
+  height: 300px;
+  bottom: -150px;
+  left: -120px;
+  background: #fbd9cf;
+  opacity: 0.6;
+}
+body > * {
+  position: relative;
+  z-index: 1;
+}
+/* Los elementos "fixed" propios (menu lateral, encabezado, modales) conservan su posicion. */
+body > .fixed,
+aside.fixed,
+header.fixed {
+  position: fixed;
 }
 
 .oculto { display: none !important; }
 
-/* --- Estado de conexión (punto en la marca) --- */
+/* --- Estado de conexion (punto en la marca) --- */
 .punto.conectado {
-  background: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+  background: var(--verde);
+  box-shadow: 0 0 0 3px rgba(31, 157, 107, 0.22);
 }
 
-/* --- Navegación lateral --- */
+/* --- Navegacion lateral --- */
 .nav-link.activa {
-  background: #10b981;
-  color: #00220f;
-  font-weight: 700;
+  background: #ffffff;
+  color: var(--morado);
+  font-weight: 800;
 }
 
 /* --- Filtros de vista (Todas / Con alertas / Conectadas) --- */
 .filtro-vista {
-  color: #586174;
+  color: var(--texto-suave);
+  border-radius: 9999px;
 }
 .filtro-vista.activo {
   background: #ffffff;
-  color: #0f1c30;
-  font-weight: 700;
-  box-shadow: 0 1px 2px rgba(15, 28, 48, 0.08);
+  color: var(--morado);
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(43, 33, 86, 0.12);
 }
 
+.filtro-timeline {
+  border-radius: 9999px !important;
+}
 .filtro-timeline.activo {
-  background: #2563eb;
-  color: #ffffff;
+  background: var(--morado) !important;
+  color: #ffffff !important;
 }
 
-/* --- Tarjeta de estación (grid "Terminales en Transmisión") --- */
+/* --- Pestañas de Gestos y Expresiones (negativas / positivas) --- */
+.tab-expresiones {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 9999px;
+  border: 1.5px solid var(--lavanda-borde);
+  background: #ffffff;
+  color: var(--texto-suave);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tab-expresiones:hover { border-color: var(--morado); color: var(--morado); }
+.tab-expresiones.activo.negativas { background: var(--coral-suave); border-color: var(--coral); color: #b73a2a; }
+.tab-expresiones.activo.positivas { background: #e6f6ee; border-color: var(--verde); color: #146b49; }
+
+/* --- Tarjeta de estacion (grid "Terminales en Transmision") --- */
 .tarjeta-estacion {
   background: #fff;
-  border-radius: 0.9rem;
-  box-shadow: 0 1px 2px rgba(15, 28, 48, 0.06), 0 8px 24px -12px rgba(15, 28, 48, 0.15);
+  border-radius: 1.4rem;
+  border: 1.5px solid var(--lavanda-borde);
+  box-shadow: 0 1px 2px rgba(43, 33, 86, 0.05), 0 10px 28px -16px rgba(43, 33, 86, 0.25);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 .tarjeta-estacion.con-alerta {
-  border-top: 4px solid #dc2626;
+  border-color: var(--coral);
 }
 
 .tarjeta-estacion .cabecera {
   padding: 0.8rem 1rem;
-  background: #0f1d38;
+  background: var(--morado-oscuro);
   color: #fff;
   display: flex;
   align-items: center;
@@ -71,17 +137,18 @@ body {
 }
 
 .tarjeta-estacion.con-alerta .cabecera {
-  background: #dc2626;
+  background: var(--coral);
 }
 
-.tarjeta-estacion .avatar-estacion {
+.tarjeta-estacion .avatar-estacion,
+.avatar-estacion {
   width: 38px;
   height: 38px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 0.8rem;
   color: #fff;
   flex-shrink: 0;
@@ -90,7 +157,7 @@ body {
 .tarjeta-estacion .video-wrap {
   position: relative;
   height: 220px;
-  background: #0b1c30;
+  background: #231a47;
   overflow: hidden;
 }
 
@@ -101,7 +168,8 @@ body {
   display: block;
 }
 
-.tarjeta-estacion .sin-senal {
+.tarjeta-estacion .sin-senal,
+.sin-senal {
   position: absolute;
   inset: 0;
   display: flex;
@@ -109,7 +177,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  color: #7885a6;
+  color: #b3a9d6;
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -123,10 +191,10 @@ body {
 }
 
 .badge-pendientes-mini {
-  background: #dc2626;
+  background: var(--coral);
   color: #fff;
   font-size: 0.62rem;
-  font-weight: 700;
+  font-weight: 800;
   min-width: 16px;
   height: 16px;
   border-radius: 999px;
@@ -138,21 +206,28 @@ body {
 
 /* --- Items del feed / timeline --- */
 .item-evento {
-  padding: 0.65rem 0.75rem;
-  border-radius: 0.625rem;
-  background: #eef1f8;
+  padding: 0.75rem 0.9rem;
+  border-radius: 1rem;
+  background: #fdf8f1;
+  border: 1.5px solid var(--lavanda-borde);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  transition: background 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 
 .item-evento.critico {
-  background: #fee2e2;
+  background: var(--coral-suave);
+  border-color: #f6c3b9;
+}
+
+.item-evento.positivo {
+  background: #eefaf4;
+  border-color: #bfe8d4;
 }
 
 .item-evento:hover {
-  background: #e4e9f4;
+  border-color: var(--morado);
 }
 
 .item-evento .fila-superior {
@@ -163,33 +238,37 @@ body {
 }
 
 .item-evento .hora {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.7rem;
-  color: #586174;
-  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--texto-suave);
+  font-weight: 700;
 }
 
-.item-evento.critico .hora { color: #dc2626; }
+.item-evento.critico .hora { color: #b73a2a; }
 
 .item-evento .nombre {
-  font-weight: 700;
-  font-size: 0.82rem;
-  color: #0f1c30;
+  font-weight: 800;
+  font-size: 0.84rem;
+  color: var(--texto);
 }
 
 .item-evento .etiqueta {
-  font-size: 0.6rem;
-  font-weight: 700;
+  font-size: 0.62rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 0.1rem 0.4rem;
-  border-radius: 0.3rem;
-  background: #e4e9f4;
-  color: #586174;
+  padding: 0.12rem 0.5rem;
+  border-radius: 9999px;
+  background: var(--lavanda);
+  color: #3b2a8f;
 }
 
 .item-evento.critico .etiqueta {
-  background: #dc2626;
+  background: var(--coral);
+  color: #fff;
+}
+
+.item-evento.positivo .etiqueta {
+  background: var(--verde);
   color: #fff;
 }
 
@@ -197,22 +276,22 @@ body {
   width: 52px;
   height: 52px;
   object-fit: cover;
-  border-radius: 0.4rem;
-  border: 1px solid #c7cedd;
+  border-radius: 0.7rem;
+  border: 1.5px solid var(--lavanda-borde);
   flex-shrink: 0;
 }
 
 .item-evento .texto {
-  font-size: 0.85rem;
-  color: #24304a;
+  font-size: 0.86rem;
+  color: #3a3160;
   line-height: 1.45;
 }
 
 .item-evento mark {
-  background: #dc2626;
+  background: var(--coral);
   color: #fff;
-  font-weight: 700;
-  border-radius: 0.25rem;
+  font-weight: 800;
+  border-radius: 0.3rem;
   padding: 0 0.25rem;
 }
 
@@ -223,24 +302,25 @@ body {
 }
 
 .btn-veredicto {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 0.28rem 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 0.32rem 0.8rem;
   border-radius: 999px;
-  border: 1px solid #c7cedd;
+  border: 1.5px solid var(--lavanda-borde);
   background: #fff;
-  color: #0f1c30;
+  color: var(--texto);
   cursor: pointer;
   transition: border-color 0.12s ease, color 0.12s ease;
 }
 
-.btn-confirmar:hover { border-color: #dc2626; color: #dc2626; }
-.btn-descartar:hover { border-color: #10b981; color: #0f9d68; }
+.btn-confirmar:hover { border-color: var(--rojo); color: var(--rojo); }
+.btn-descartar:hover { border-color: var(--verde); color: var(--verde); }
+.btn-eliminar:hover { border-color: var(--coral); color: #b73a2a; }
 
 .vacio-feed {
   text-align: center;
-  color: #8890a0;
-  font-size: 0.85rem;
+  color: var(--texto-suave);
+  font-size: 0.86rem;
   padding: 1.5rem 0;
 }
 
@@ -249,6 +329,15 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-weight: 700;
-  font-size: 0.82rem;
+  font-weight: 800;
+  font-size: 0.84rem;
+}
+
+/* --- Modal de expresion critica (pide gestion inmediata al supervisor) --- */
+.modal-critica-pulso {
+  animation: pulso-critica 1.6s ease-in-out infinite;
+}
+@keyframes pulso-critica {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 111, 94, 0.55); }
+  50% { box-shadow: 0 0 0 14px rgba(239, 111, 94, 0); }
 }

@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     emocion_ventana_frames: int = 5
     emocion_umbral_probabilidad: float = 0.35  # suma de probabilidad negativa promediada para alertar
     emocion_frames_consecutivos: int = 3  # cuadros seguidos por encima del umbral antes de alertar
+    # Por encima de este puntaje negativo, la alerta es CRITICA: el panel del supervisor abre un
+    # modal que le pide gestionarla de inmediato.
+    emocion_umbral_critico: float = 0.75
+    # Expresiones positivas: felicidad promediada por encima de este valor se registra (solo
+    # informativa: no se califica como real/falsa, solo se puede eliminar).
+    emocion_umbral_positivo: float = 0.97
+    emocion_positiva_cooldown_segundos: float = 30.0
     emocion_cooldown_segundos: float = 10.0  # tiempo minimo entre alertas repetidas de la misma estacion
 
     # --- Audio / STT ---

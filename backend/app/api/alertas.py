@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from app.core.auth import requerir_admin
 from app.core.seguridad import descifrar_bytes
-from app.core.db import RUTA_CAPTURAS, actualizar_veredicto, obtener_captura_path
+from app.core.db import RUTA_CAPTURAS, actualizar_veredicto, eliminar_alerta_positiva, obtener_captura_path
 
 router = APIRouter()
 
@@ -30,6 +30,17 @@ async def captura_alerta(alerta_id: int, _admin: str = Depends(requerir_admin)) 
         raise HTTPException(status_code=404, detail="Captura no encontrada")
 
     return Response(content=descifrar_bytes(ruta_absoluta.read_bytes()), media_type="image/jpeg")
+
+
+@router.delete("/alertas/{alerta_id}")
+async def eliminar_alerta(alerta_id: int, _admin: str = Depends(requerir_admin)) -> dict:
+    """Solo para expresiones positivas (no se califican, solo se eliminan)."""
+    eliminada, captura_path = await eliminar_alerta_positiva(alerta_id)
+    if not eliminada:
+        raise HTTPException(status_code=404, detail="Solo se pueden eliminar expresiones positivas")
+    if captura_path:
+        (RUTA_CAPTURAS / captura_path).unlink(missing_ok=True)
+    return {"alerta_id": alerta_id, "eliminada": True}
 
 
 class Veredicto(BaseModel):

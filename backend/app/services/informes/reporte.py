@@ -64,16 +64,19 @@ async def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
     primera = min((s["timestamp"] for s in conexiones), default=None)
     ultima = max((s["timestamp"] for s in conexiones), default=None)
 
-    alertas = [e for e in eventos if e["categoria"].startswith("Alerta")]
+    # Las expresiones positivas son informativas: no cuentan como alertas por revisar.
+    alertas = [e for e in eventos if e["categoria"].startswith("Alerta") and e["categoria"] != "Alerta de expresion_positiva"]
+    positivas = [e for e in eventos if e["categoria"] == "Alerta de expresion_positiva"]
     transcripciones = [e for e in eventos if e["categoria"] == "Transcripción"]
     confirmadas = sum(1 for a in alertas if a["veredicto"] == "confirmada")
     falsas = sum(1 for a in alertas if a["veredicto"] == "falsa_alarma")
     sin_revisar = sum(1 for a in alertas if a["veredicto"] == "Sin revisar")
-    por_tipo = {"postura": 0, "lenguaje": 0, "expresion": 0, "ausencia": 0}
+    por_tipo = {"postura": 0, "lenguaje": 0, "expresion": 0, "ausencia": 0, "expresion_positiva": 0}
     for a in alertas:
-        for tipo in por_tipo:
-            if tipo in a["categoria"]:
-                por_tipo[tipo] += 1
+        # Coincidencia EXACTA del tipo ("expresion" esta contenido en "expresion_positiva").
+        tipo = a["categoria"].removeprefix("Alerta de ")
+        if tipo in por_tipo:
+            por_tipo[tipo] += 1
 
     wb = Workbook()
 
@@ -105,6 +108,7 @@ async def generar_reporte_trabajador_xlsx(nombre: str) -> bytes:
         ("Total de alertas generadas", len(alertas)),
         ("  · Alertas de lenguaje inapropiado", por_tipo["lenguaje"]),
         ("  · Alertas de expresión facial negativa", por_tipo["expresion"]),
+        ("  · Expresiones positivas registradas", len(positivas)),
         ("  · Alertas de ausencia frente a la cámara", por_tipo["ausencia"]),
         ("  · Alertas de postura (heurística retirada, solo historial)", por_tipo["postura"]),
         ("Alertas confirmadas por el supervisor", confirmadas),

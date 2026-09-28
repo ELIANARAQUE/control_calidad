@@ -11,39 +11,44 @@ tailwind.config = {
   theme: {
     extend: {
       colors: {
-        "primary": "#2563eb", "on-primary": "#ffffff",
-        "primary-container": "#0f1d38", "on-primary-container": "#c3ccdd",
-        "secondary": "#0f9d68", "secondary-container": "#10b981", "on-secondary-container": "#00220f",
-        "tertiary-container": "#0b1c30",
-        "error": "#dc2626", "on-error": "#ffffff", "error-container": "#fee2e2", "on-error-container": "#7f1d1d",
-        "surface": "#f4f6fb", "on-surface": "#0f1c30", "on-surface-variant": "#586174",
-        "surface-container-lowest": "#ffffff", "surface-container-low": "#eef1f8",
-        "surface-container": "#e4e9f4", "surface-container-high": "#d8e0ef", "surface-container-highest": "#cbd6ea",
-        "outline": "#8890a0",
+        "primary": "#5b46d6", "on-primary": "#ffffff",
+        "primary-container": "#2b2156", "on-primary-container": "#d9d1f7",
+        "secondary": "#6d56e0", "secondary-container": "#ece6ff", "on-secondary-container": "#3b2a8f",
+        "tertiary-container": "#231a47", "on-tertiary-fixed": "#cfc5f7", "secondary-fixed-dim": "#cfc5f7",
+        "on-primary-fixed-variant": "#d9d1f7",
+        "coral": "#ef6f5e", "coral-suave": "#fdebe7",
+        "error": "#e5484d", "on-error": "#ffffff", "error-container": "#fdecea", "on-error-container": "#8a2020",
+        "surface": "#fbf5ec", "on-surface": "#2b2156", "on-surface-variant": "#6b6485",
+        "surface-container-lowest": "#ffffff", "surface-container-low": "#fdf8f1",
+        "surface-container": "#f3eefb", "surface-container-high": "#e8e0f5", "surface-container-highest": "#ddd3f0",
+        "outline": "#9b93b5", "outline-variant": "#e6ddf5",
       },
-      borderRadius: { DEFAULT: "0.375rem", lg: "0.625rem", xl: "0.9rem", full: "9999px" },
+      borderRadius: { DEFAULT: "0.5rem", lg: "0.9rem", xl: "1.4rem", full: "9999px" },
       spacing: { "space-xs": "0.35rem", "space-sm": "0.6rem", "space-md": "1rem", "space-lg": "1.5rem", "space-xl": "2.25rem" },
       fontFamily: {
-        "headline-lg": ["Space Grotesk"], "headline-md": ["Space Grotesk"], "headline-sm": ["Space Grotesk"],
-        "body-md": ["Manrope"], "body-sm": ["Manrope"],
-        "label-sm": ["JetBrains Mono"], "label-md": ["JetBrains Mono"],
+        "headline-xl": ["Plus Jakarta Sans"], "headline-lg": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"],
+        "body-md": ["Plus Jakarta Sans"], "body-sm": ["Plus Jakarta Sans"], "body-lg": ["Plus Jakarta Sans"],
+        "label-sm": ["Plus Jakarta Sans"], "label-md": ["Plus Jakarta Sans"], "label-lg": ["Plus Jakarta Sans"],
       },
       fontSize: {
-        "headline-lg": ["26px", { lineHeight: "34px", fontWeight: "700" }],
-        "headline-md": ["19px", { lineHeight: "26px", fontWeight: "700" }],
+        "headline-xl": ["36px", { lineHeight: "44px", fontWeight: "800" }],
+        "headline-lg": ["28px", { lineHeight: "36px", fontWeight: "800" }],
+        "headline-md": ["20px", { lineHeight: "28px", fontWeight: "800" }],
         "headline-sm": ["15px", { lineHeight: "22px", fontWeight: "700" }],
-        "body-md": ["13.5px", { lineHeight: "20px", fontWeight: "400" }],
-        "body-sm": ["12px", { lineHeight: "18px", fontWeight: "400" }],
-        "label-md": ["11.5px", { lineHeight: "16px", fontWeight: "600" }],
-        "label-sm": ["10px", { lineHeight: "14px", fontWeight: "600" }],
+        "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+        "body-md": ["14px", { lineHeight: "21px", fontWeight: "400" }],
+        "body-sm": ["12.5px", { lineHeight: "18px", fontWeight: "400" }],
+        "label-lg": ["13px", { lineHeight: "18px", fontWeight: "700" }],
+        "label-md": ["12px", { lineHeight: "16px", fontWeight: "700" }],
+        "label-sm": ["11px", { lineHeight: "14px", fontWeight: "600" }],
       },
     },
   },
 };
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" />
-<link rel="stylesheet" href="style.css?v=5" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="style.css?v=30" />
 </head>
 <body class="bg-surface font-body-md text-body-md text-on-surface antialiased min-h-screen">
 
@@ -64,7 +69,7 @@ tailwind.config = {
     </button>
   </div>
 </header>
-<div class="bg-surface-container-low border-b border-surface-container-high px-space-lg py-space-xs">
+<div class="oculto">
   <p class="font-body-sm text-body-sm text-on-surface-variant max-w-4xl mx-auto text-center" id="subtitulo">Preparando conexión…</p>
 </div>
 
@@ -76,7 +81,30 @@ tailwind.config = {
   </div>
 </div>
 
-<main class="max-w-6xl mx-auto p-space-lg lg:p-space-xl flex flex-col gap-space-lg">
+<div class="flex min-h-[calc(100vh-4rem)]">
+<aside class="panel-lateral w-64 shrink-0 bg-surface-container-lowest border-r border-outline-variant flex flex-col justify-between p-space-md gap-space-md">
+  <div class="flex flex-col gap-space-md">
+    <div class="flex items-center gap-space-sm px-space-xs py-space-sm">
+      <div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-bold shrink-0" id="avatarEmpleado">?</div>
+      <div class="flex flex-col min-w-0">
+        <span class="font-label-sm text-label-sm text-on-surface-variant">Bienvenido(a)</span>
+        <span class="font-body-md text-body-md text-on-surface font-bold truncate" id="nombreEmpleado">—</span>
+      </div>
+    </div>
+    <nav class="flex flex-col gap-space-xs">
+      <button class="nav-empleado activa" data-vista="monitoreo" type="button">
+        <span class="material-symbols-outlined text-[20px]">videocam</span><span>Iniciar monitoreo</span>
+      </button>
+      <button class="nav-empleado" data-vista="historico" type="button">
+        <span class="material-symbols-outlined text-[20px]">history</span><span>Ver histórico</span>
+      </button>
+    </nav>
+  </div>
+  <button class="nav-empleado" id="btnCerrarSesionLateral" type="button">
+    <span class="material-symbols-outlined text-[20px]">logout</span><span>Cerrar sesión</span>
+  </button>
+</aside>
+<main class="flex-1 min-w-0 max-w-6xl mx-auto p-space-lg lg:p-space-xl flex flex-col gap-space-lg" id="vistaMonitoreo">
 
   <!-- ===================== PASO 1: CONFIGURACIÓN / HABEAS DATA ===================== -->
   <section class="config flex flex-col gap-space-lg" id="config">
@@ -86,19 +114,6 @@ tailwind.config = {
           <span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Paso 1 // Datos de la sesión</span>
         </div>
         <h1 class="font-headline-md text-headline-md text-on-surface">Ingreso a la Estación de Trabajo</h1>
-        <p class="font-body-sm text-body-sm text-on-surface-variant">Confirma tu puesto para habilitar la telemetría de calidad de servicio.</p>
-
-        <div class="flex items-center justify-between gap-space-sm bg-surface-container-low rounded-lg px-space-md py-space-sm">
-          <div class="flex items-center gap-space-sm min-w-0">
-            <span class="material-symbols-outlined text-[20px] text-on-surface-variant shrink-0">verified_user</span>
-            <div class="flex flex-col min-w-0">
-              <span class="font-label-sm text-label-sm text-on-surface-variant">Sesión iniciada como</span>
-              <span class="font-body-md text-body-md text-on-surface font-semibold truncate" id="nombreEmpleado">—</span>
-            </div>
-          </div>
-          <a class="font-label-sm text-label-sm text-primary font-semibold shrink-0" href="#" id="btnCerrarSesionEmpleado">Cerrar sesión</a>
-        </div>
-
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
           <div class="flex flex-col gap-space-xs">
             <label class="font-label-md text-label-md text-on-surface font-semibold" for="sedeSelect">Sede o modalidad</label>
@@ -340,6 +355,58 @@ tailwind.config = {
   </footer>
 </main>
 
-<script src="client.js?v=9"></script>
+<!-- ===================== VER HISTORICO (solo conexiones, sin fotos ni reportes) ===================== -->
+<main class="oculto flex-1 min-w-0 max-w-5xl mx-auto p-space-lg lg:p-space-xl flex flex-col gap-space-lg" id="vistaHistorico">
+  <div class="flex flex-col gap-space-xs">
+    <span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Mi actividad</span>
+    <h1 class="font-headline-lg text-headline-lg text-on-surface">Histórico de conexiones</h1>
+    <p class="font-body-sm text-body-sm text-on-surface-variant">Cada vez que iniciaste una sesión de monitoreo: cuándo empezó, cuándo terminó y en qué puesto.</p>
+  </div>
+  <div class="bg-surface-container-lowest rounded-xl shadow-sm p-space-md overflow-x-auto">
+    <table class="w-full text-left">
+      <thead>
+        <tr class="font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">
+          <th class="py-space-sm pr-space-sm">Fecha</th>
+          <th class="py-space-sm pr-space-sm">Inicio</th>
+          <th class="py-space-sm pr-space-sm">Fin</th>
+          <th class="py-space-sm pr-space-sm">Duración</th>
+          <th class="py-space-sm pr-space-sm">Sede</th>
+          <th class="py-space-sm">Módulo</th>
+        </tr>
+      </thead>
+      <tbody class="font-body-md text-body-md text-on-surface" id="tablaHistorico"></tbody>
+    </table>
+    <p class="oculto text-center text-on-surface-variant py-space-lg" id="vacioHistorico">Todavía no tienes sesiones de monitoreo registradas.</p>
+  </div>
+</main>
+</div>
+
+<!-- Modal: iniciando monitoreo -->
+<div class="oculto fixed inset-0 bg-black/50 z-[150] flex items-center justify-center p-space-md" id="modalCargandoMonitoreo">
+  <div class="bg-surface-container-lowest rounded-xl shadow-xl w-full max-w-sm p-space-lg flex flex-col gap-space-md items-center text-center">
+    <div class="w-12 h-12 rounded-full border-4 border-surface-container-high border-t-primary animate-spin"></div>
+    <h2 class="font-headline-md text-headline-md text-on-surface">Iniciando monitoreo…</h2>
+    <p class="font-body-sm text-body-sm text-on-surface-variant" id="pasoCargandoMonitoreo">Preparando cámara y micrófono</p>
+  </div>
+</div>
+
+<!-- Modal: error al iniciar -->
+<div class="oculto fixed inset-0 bg-black/50 z-[150] flex items-center justify-center p-space-md" id="modalErrorMonitoreo">
+  <div class="bg-surface-container-lowest rounded-xl shadow-xl w-full max-w-md p-space-lg flex flex-col gap-space-md">
+    <div class="flex items-center gap-space-sm text-error">
+      <span class="material-symbols-outlined text-[28px]">error</span>
+      <h2 class="font-headline-md text-headline-md">No se pudo iniciar el monitoreo</h2>
+    </div>
+    <p class="font-body-md text-body-md text-on-surface" id="textoErrorMonitoreo"></p>
+    <p class="font-body-sm text-body-sm text-on-surface-variant" id="sugerenciaErrorMonitoreo"></p>
+    <p class="font-label-sm text-label-sm text-outline" id="codigoErrorMonitoreo"></p>
+    <div class="flex justify-end gap-space-sm">
+      <button class="px-space-md py-space-sm rounded-lg font-label-md text-label-md font-semibold bg-surface-container text-on-surface" id="btnCerrarErrorMonitoreo" type="button">Cerrar</button>
+      <button class="px-space-md py-space-sm rounded-lg font-label-md text-label-md font-semibold bg-primary text-on-primary" id="btnReintentarMonitoreo" type="button">Reintentar</button>
+    </div>
+  </div>
+</div>
+
+<script src="client.js?v=10"></script>
 </body>
 </html>

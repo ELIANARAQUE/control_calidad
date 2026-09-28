@@ -35,18 +35,38 @@ function actualizarBannerFoco() {
   });
 }
 
-function renderizar() {
-  actualizarBannerFoco();
-  const foco = Core.obtenerFoco();
-  const combinado = [];
+// Pestañas: "negativas" (expresion negativa, ausencia y postura vieja; se califican con fue
+// real / falsa alarma) y "positivas" (felicidad >= 97%; informativas, solo se eliminan).
+const TIPOS_POR_GRUPO = {
+  negativas: new Set(["alerta_expresion", "alerta_ausencia", "alerta_postura"]),
+  positivas: new Set(["alerta_expresion_positiva"]),
+};
+let grupoActivo = "negativas";
+document.querySelectorAll(".tab-expresiones").forEach((tab) =>
+  tab.addEventListener("click", () => {
+    grupoActivo = tab.dataset.grupo;
+    document.querySelectorAll(".tab-expresiones").forEach((t) => t.classList.toggle("activo", t === tab));
+    renderizar();
+  })
+);
+
+function eventosDeGrupo(grupo, foco) {
+  const lista = [];
   for (const [id, datos] of Core.estaciones) {
     if (foco && id !== foco) continue;
     for (const evento of datos.eventos) {
-      if (evento.tipo === "alerta_postura" || evento.tipo === "alerta_expresion" || evento.tipo === "alerta_ausencia") {
-        combinado.push({ ...evento, estacion_id: evento.estacion_id || id });
-      }
+      if (TIPOS_POR_GRUPO[grupo].has(evento.tipo)) lista.push({ ...evento, estacion_id: evento.estacion_id || id });
     }
   }
+  return lista;
+}
+
+function renderizar() {
+  actualizarBannerFoco();
+  const foco = Core.obtenerFoco();
+  document.getElementById("conteoNegativas").textContent = eventosDeGrupo("negativas", foco).filter((e) => !e.veredicto).length;
+  document.getElementById("conteoPositivas").textContent = eventosDeGrupo("positivas", foco).length;
+  const combinado = eventosDeGrupo(grupoActivo, foco);
   combinado.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   const filtrado = filtroBusqueda
@@ -56,15 +76,21 @@ function renderizar() {
       })
     : combinado;
 
-  const pendientes = combinado.filter((e) => !e.veredicto).length;
-  contadorAlertasEl.textContent = `${combinado.length} alerta${combinado.length === 1 ? "" : "s"} de gestos` + (pendientes ? ` · ${pendientes} sin revisar` : "");
+  if (grupoActivo === "negativas") {
+    const pendientes = combinado.filter((e) => !e.veredicto).length;
+    contadorAlertasEl.textContent =
+      `${combinado.length} expresión${combinado.length === 1 ? "" : "es"} negativa${combinado.length === 1 ? "" : "s"}` +
+      (pendientes ? ` · ${pendientes} sin revisar` : "");
+  } else {
+    contadorAlertasEl.textContent = `${combinado.length} expresión${combinado.length === 1 ? "" : "es"} positiva${combinado.length === 1 ? "" : "s"}`;
+  }
 
   feedEl.innerHTML = "";
   for (const evento of filtrado.slice(0, 200)) {
     feedEl.appendChild(Core.crearElementoEvento(evento, true, renderizar));
   }
   if (filtrado.length === 0) {
-    feedEl.innerHTML = '<p class="vacio-feed">Sin alertas de gestos todavía.</p>';
+    feedEl.innerHTML = `<p class="vacio-feed">${grupoActivo === "negativas" ? "Sin expresiones negativas todavía." : "Sin expresiones positivas todavía."}</p>`;
   }
 }
 
