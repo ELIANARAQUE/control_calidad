@@ -170,11 +170,11 @@ document.getElementById("btnModoCamara").addEventListener("click", async () => {
   }
 });
 
-btnTomarFoto.addEventListener("click", async () => {
+btnTomarFoto.addEventListener("click", () => {
   if (btnTomarFoto.disabled) return;
-  // Solo la zona del ovalo: la foto guardada es de la persona del marco, no de quien este al lado.
-  const { capturarZonaOvalo } = await moduloGuia;
-  capturarZonaOvalo(videoRegistro, canvasRegistro);
+  canvasRegistro.width = videoRegistro.videoWidth;
+  canvasRegistro.height = videoRegistro.videoHeight;
+  canvasRegistro.getContext("2d").drawImage(videoRegistro, 0, 0);
   canvasRegistro.toBlob((blob) => guardarFoto(blob), "image/jpeg", 0.92);
 });
 

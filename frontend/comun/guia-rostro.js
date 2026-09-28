@@ -41,7 +41,7 @@ async function crearLandmarker(modo) {
   return FaceLandmarker.createFromOptions(archivos, {
     baseOptions: { modelAssetPath: URL_MODELO },
     runningMode: modo,
-    numFaces: 5, // se detectan varias para poder quedarse con la que esta dentro del ovalo
+    numFaces: 2, // se piden 2 solo para poder avisar "hay mas de una persona"
   });
 }
 
@@ -59,23 +59,13 @@ export function evaluarRostro(caras, angulo, { encuadre = true } = {}) {
           : "No se detecta tu rostro: gira un poco MENOS la cabeza (tres cuartos, no perfil completo).",
     };
   }
-  // Con camara en vivo, si hay varias personas solo importa la que esta en el ovalo: se toma la
-  // cara mas cercana al centro del ovalo y las demas se ignoran. En una foto subida no hay
-  // ovalo que indique quien es, asi que ahi si se exige una sola persona.
-  if (!encuadre && caras.length > 1) {
-    return { valido: false, mensaje: "Hay más de una persona en la foto: debe aparecer solo una." };
-  }
-  const cajas = caras.map((puntos) => {
-    const xs = puntos.map((l) => l.x);
-    const ys = puntos.map((l) => l.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-    const distancia = ((cx - OVALO.cx) / OVALO.rx) ** 2 + ((cy - OVALO.cy) / OVALO.ry) ** 2;
-    return { puntos, cx, cy, alto: maxY - minY, distancia };
-  });
-  const elegida = cajas.reduce((mejor, caja) => (caja.distancia < mejor.distancia ? caja : mejor));
-  const p = elegida.puntos;
-  const { cx, cy, alto } = elegida;
+  if (caras.length > 1) return { valido: false, mensaje: "Hay más de una persona en la imagen: debe aparecer solo una." };
+
+  const p = caras[0];
+  const xs = p.map((l) => l.x);
+  const ys = p.map((l) => l.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, alto = maxY - minY;
 
   if (encuadre) {
     // Tamaño: la cara debe llenar el ovalo de forma razonable (ni muy lejos ni muy cerca).
@@ -109,21 +99,6 @@ export function evaluarRostro(caras, angulo, { encuadre = true } = {}) {
     if (giro > 0.3) return { valido: false, mensaje: "Gira más la cabeza hacia TU DERECHA." };
   }
   return { valido: true, mensaje: "¡Perfecto! Mantén la posición y toma la foto." };
-}
-
-// Dibuja en `canvasDestino` SOLO la zona del ovalo (con un margen) del cuadro actual del video.
-// La foto que se envia al servidor queda sin las demas personas que hubiera alrededor: asi el
-// reconocimiento facial analiza unicamente a quien estaba dentro del marco.
-export function capturarZonaOvalo(video, canvasDestino) {
-  const margen = 1.35;
-  const w = video.videoWidth, h = video.videoHeight;
-  const ancho = Math.min(w, OVALO.rx * 2 * margen * w);
-  const alto = Math.min(h, OVALO.ry * 2 * margen * h);
-  const x = Math.max(0, Math.min(w - ancho, OVALO.cx * w - ancho / 2));
-  const y = Math.max(0, Math.min(h - alto, OVALO.cy * h - alto / 2));
-  canvasDestino.width = Math.round(ancho);
-  canvasDestino.height = Math.round(alto);
-  canvasDestino.getContext("2d").drawImage(video, x, y, ancho, alto, 0, 0, canvasDestino.width, canvasDestino.height);
 }
 
 function dibujarOvalo(canvas, estado) {

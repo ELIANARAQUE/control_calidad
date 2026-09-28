@@ -187,9 +187,9 @@ document.getElementById("btnCapturarRostro").addEventListener("click", async () 
   if (!stream || !datosSesionPendiente || btnVerificarRostro.disabled) return;
   errorRostro.classList.add("oculto");
 
-  // Solo la zona del ovalo: si hay mas personas en la camara, no llegan al servidor.
-  const { capturarZonaOvalo } = await import("/comun/guia-rostro.js");
-  capturarZonaOvalo(video, canvas);
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
 
   canvas.toBlob(async (blob) => {
     const form = new FormData();
