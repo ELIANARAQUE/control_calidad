@@ -21,13 +21,13 @@ class Settings(BaseSettings):
     # Ejemplo para habilitarlo en .env: WEBRTC_STUN=stun:stun.l.google.com:19302
     webrtc_stun: str = ""
 
-    # --- Supabase (reemplaza la base SQLite local: usuarios, alertas,
-    # transcripciones, eventos de conexion, opciones configurables) ---
-    # Obligatorios: sin esto el backend no arranca (ver app/core/supabase_client.py).
-    # SUPABASE_KEY debe ser la SERVICE ROLE KEY (no la anon key): el backend necesita
-    # poder leer/escribir sin las restricciones de Row Level Security de un cliente publico.
-    supabase_url: str = ""
-    supabase_key: str = ""
+    # --- Postgres nativo (Railway) ---
+    # Fuente de persistencia (usuarios, alertas, transcripciones, eventos de conexion,
+    # opciones configurables). Reemplaza a Supabase (ver supabase_version_definitiva.sql,
+    # que queda como referencia historica; el schema vigente es postgres_schema.sql).
+    # Railway la inyecta automaticamente en la variable de entorno al vincular su plugin
+    # de Postgres al servicio (no hace falta armarla a mano). Ver app/core/db_client.py.
+    database_url: str = ""
 
     # --- Cifrado de datos sensibles (numero de documento, correo electronico) ---
     # Clave simetrica de `cryptography.fernet.Fernet`. Generar una con:

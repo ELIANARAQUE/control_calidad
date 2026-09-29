@@ -1,27 +1,16 @@
 -- ============================================================================
--- ControlCalidad — SCRIPT DEFINITIVO DE BASE DE DATOS (Supabase / Postgres)
+-- ControlCalidad — SCHEMA PARA POSTGRES NATIVO (Railway)
 --
--- HISTORICO: este era el schema de Supabase, ya NO se usa para desplegar. El sistema
--- migro a Postgres nativo (Railway); el schema vigente es `backend/postgres_schema.sql`
--- (identico salvo el bucket de Storage, que se reemplazo por fotos en disco cifrado, ver
--- `app/core/cuentas.py`). Este archivo se conserva solo como referencia historica.
+-- Version derivada de supabase_version_definitiva.sql, adaptada para correr contra un
+-- Postgres nativo (Railway) en vez de Supabase. Unica diferencia real: se quito el
+-- INSERT a `storage.buckets` (bucket de fotos de registro) porque ese schema es
+-- especifico de Supabase Storage y no existe en un Postgres vanilla -las fotos de
+-- registro, en la migracion, pasan a guardarse de otra forma (ver fase de migracion de
+-- cuentas.py). El resto del schema (tablas, indices, vista, datos iniciales) es identico.
 --
--- Contiene TODO lo que necesita el sistema: tablas, indices, bucket de fotos y datos
--- iniciales (tipos de documento, clave de super-admin, opciones de sede/modulo y el
--- diccionario de lenguaje inapropiado de Colombia), y las pausas de almuerzo/break con
--- la vista `pausas_por_sesion` (tiempo total de cada tipo de pausa por sesion).
---
--- Como usarlo: Supabase -> SQL Editor -> New query -> pegar todo -> Run.
---
--- Es seguro correrlo en una base NUEVA o en la que ya tienes:
---   * no borra ni vacia ninguna tabla (tus usuarios, sesiones y alertas se conservan);
---   * crea solo lo que falte y agrega las columnas nuevas a tablas ya existentes;
---   * los datos iniciales no se duplican si ya estan.
---
--- Reemplaza a los scripts anteriores (supabase_schema.sql, supabase_final.sql,
--- supabase_lenguaje.sql y supabase_opciones.sql): con este basta.
---
--- Clave de super-admin: "SAdmin123" (se guarda hasheada con bcrypt).
+-- Como usarlo: psql (o cualquier cliente de Postgres) contra la base de Railway -> pegar
+-- todo -> Run. Es seguro correrlo en una base nueva o en una que ya tiene datos (mismas
+-- garantias que el script original: no borra ni vacia tablas, crea solo lo que falte).
 -- ============================================================================
 
 create extension if not exists pgcrypto;  -- para gen_random_uuid()
@@ -67,8 +56,9 @@ on conflict (id) do nothing;
 -- (SHA-256) determinista para poder buscar/validar duplicados sin tener que
 -- descifrar todo. La clave de acceso se guarda con bcrypt (nunca reversible).
 -- El embedding facial (para el login con verificacion de rostro) se guarda
--- como jsonb; la foto de registro se sube a Supabase Storage y aqui solo se
--- guarda su ruta/URL.
+-- como jsonb; la foto de registro (cifrada con Fernet) se guarda en disco
+-- local (ver `RUTA_FOTOS_EMPLEADOS` en `app.core.cuentas`) y aqui solo se
+-- guarda su ruta RELATIVA a esa carpeta.
 -- --------------------------------------------------------------------------
 create table if not exists usuarios (
     id uuid primary key default gen_random_uuid(),
@@ -81,7 +71,7 @@ create table if not exists usuarios (
     clave_hash text not null,
     rol text not null check (rol in ('empleado', 'admin')),
     foto_url text,
-    fotos jsonb,  -- {"frontal": ruta, "izquierda": ruta, "derecha": ruta} en Storage
+    fotos jsonb,  -- {"frontal": ruta, "izquierda": ruta, "derecha": ruta} relativas a RUTA_FOTOS_EMPLEADOS
     rostro_embedding jsonb,  -- {"frontal": [...], "izquierda": [...], "derecha": [...]}
     creado_en timestamptz not null default now()
 );
@@ -157,15 +147,6 @@ insert into opciones_configurables (tipo, valor, orden) values
     ('modulo', 'Soporte Técnico', 1),
     ('modulo', 'Financiera', 2)
 on conflict (tipo, valor) do nothing;
-
--- --------------------------------------------------------------------------
--- Bucket de Storage para las fotos de registro (rostro). Crear tambien desde
--- el dashboard (Storage -> New bucket -> nombre "fotos-empleados", privado)
--- si esta sentencia no alcanza a correr por permisos del SQL editor.
--- --------------------------------------------------------------------------
-insert into storage.buckets (id, name, public)
-values ('fotos-empleados', 'fotos-empleados', false)
-on conflict (id) do nothing;
 
 -- --------------------------------------------------------------------------
 -- Diccionario de lenguaje inapropiado (editable desde el panel). Los terminos iniciales se

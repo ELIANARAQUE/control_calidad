@@ -28,10 +28,16 @@ faster-whisper==1.0.3
 nvidia-cublas-cu12
 nvidia-cudnn-cu12
 
-# Base de datos y cuentas (Supabase reemplaza el SQLite local; ver supabase_schema.sql)
-supabase==2.31.0
+# Base de datos y cuentas (Postgres nativo de Railway; ver postgres_schema.sql)
 bcrypt==5.0.0
 cryptography==50.0.1
+
+# Postgres nativo (Railway), via app/core/db_client.py. Reemplazo completo de Supabase
+# (supabase-py/postgrest ya no se usan en ningun lado, ver supabase_version_definitiva.sql
+# como referencia historica del schema original).
+# [binary] trae libpq embebida, no hace falta libpq-dev en el Dockerfile.
+psycopg[binary]==3.2.3
+psycopg_pool==3.2.3
 
 # Reconocimiento facial para el login (verificacion de identidad, no solo deteccion de
 # landmarks): arrastra tensorflow, que exige numpy>=2.0 -por eso numpy queda pineado a 1.26.4

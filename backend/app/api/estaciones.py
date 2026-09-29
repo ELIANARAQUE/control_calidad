@@ -32,7 +32,7 @@ from app.core.db import (
     obtener_opciones,
     obtener_ultima_sesion,
 )
-from app.core.supabase_client import en_hilo
+from app.core.db_client import en_hilo
 from app.core.state import bus_alertas, config_tiempo_real, gestor_estaciones, notificador_estaciones, nuevo_evento
 from app.services.informes.historial import generar_historial_xlsx
 from app.services.informes.reporte import generar_reporte_trabajador_xlsx

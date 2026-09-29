@@ -1,5 +1,5 @@
 """Tokens de sesion en memoria, ahora con rol (admin/empleado) segun la cuenta real en
-Supabase -antes era un usuario/clave unico y compartido; ver `app.core.cuentas` para el login
+Postgres -antes era un usuario/clave unico y compartido; ver `app.core.cuentas` para el login
 real (credenciales + verificacion facial) contra la tabla `usuarios`.
 
 Los tokens siguen viviendo solo en memoria del proceso (no en una tabla): si el servidor se

@@ -1,6 +1,6 @@
 """Cuentas: catalogo de tipos de documento, registro (empleado/admin, con foto de rostro), y
 login en dos pasos -credenciales primero, verificacion facial despues- contra la tabla
-`usuarios` de Supabase. Reemplaza el login unico admin/admin123 de antes.
+`usuarios` de Postgres. Reemplaza el login unico admin/admin123 de antes.
 """
 import re
 

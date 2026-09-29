@@ -1,6 +1,6 @@
 """Deteccion de lenguaje inapropiado en el texto ya transcrito por Whisper.
 
-El diccionario vive en Supabase (tabla `lenguaje_inapropiado`, editable desde el panel de
+El diccionario vive en Postgres (tabla `lenguaje_inapropiado`, editable desde el panel de
 administrador en "Historial y Reportes"), con tres categorias:
   - groseria_fuerte: groserias/insultos inequivocos (se detectan en cualquier sensibilidad).
   - groseria_leve: insultos suaves ("idiota", "bobo"...): solo en sensibilidad "estricto".

@@ -1,4 +1,4 @@
-"""Sistema de cuentas (empleados y administradores) sobre Supabase: registro con foto de
+"""Sistema de cuentas (empleados y administradores) sobre Postgres: registro con foto de
 rostro, login con contraseña + verificacion facial, y el control de que solo alguien con la
 clave de super-admin pueda registrarse como administrador.
 
@@ -6,12 +6,14 @@ Datos sensibles (numero de documento, correo) se guardan cifrados con `cryptogra
 `app.core.seguridad`), nunca en texto plano; la contraseña se guarda con bcrypt (irreversible).
 """
 import uuid
+from pathlib import Path
 
 import cv2
 import numpy as np
+from psycopg.types.json import Json
 
+from app.core.db_client import ejecutar, en_hilo
 from app.core.seguridad import cifrar, cifrar_bytes, descifrar, hash_busqueda, hashear_clave, verificar_clave
-from app.core.supabase_client import en_hilo, obtener_supabase
 from app.services.rostros.reconocimiento import (
     desvio_horizontal_nariz,
     distancia_minima,
@@ -20,7 +22,11 @@ from app.services.rostros.reconocimiento import (
     verificar_rostro,
 )
 
-NOMBRE_BUCKET_FOTOS = "fotos-empleados"
+# Las fotos de registro (cifradas con Fernet, ver `app.core.seguridad.cifrar_bytes`) ya no van
+# a Supabase Storage: quedan en disco local, una carpeta por usuario_id, igual criterio que
+# `RUTA_CAPTURAS` en `app.core.db` (que tampoco vive en `Settings`: es una constante fija del
+# modulo que las persiste, no algo configurable por variable de entorno).
+RUTA_FOTOS_EMPLEADOS = Path(__file__).parent.parent.parent / "data" / "fotos_empleados"
 ANGULOS_FOTO = ("frontal", "izquierda", "derecha")
 _NOMBRE_ANGULO = {"frontal": "frontal", "izquierda": "lateral izquierda", "derecha": "lateral derecha"}
 # Desvio de la nariz respecto al centro de los ojos, en "distancias entre ojos" (ver
@@ -47,8 +53,7 @@ def _decodificar_imagen(foto_bytes: bytes) -> np.ndarray:
 # ============================================================================
 
 def _obtener_tipos_documento_sync() -> list[dict]:
-    filas = obtener_supabase().table("tipos_documento").select("id, nombre").order("nombre").execute()
-    return filas.data
+    return ejecutar("SELECT id, nombre FROM tipos_documento ORDER BY nombre")
 
 
 async def obtener_tipos_documento() -> list[dict]:
@@ -60,10 +65,10 @@ async def obtener_tipos_documento() -> list[dict]:
 # ============================================================================
 
 def _verificar_clave_super_admin_sync(clave: str) -> bool:
-    fila = obtener_supabase().table("super_admin").select("clave_hash").eq("id", 1).limit(1).execute()
-    if not fila.data:
+    filas = ejecutar("SELECT clave_hash FROM super_admin WHERE id = %s LIMIT 1", (1,))
+    if not filas:
         return False
-    return verificar_clave(clave, fila.data[0]["clave_hash"])
+    return verificar_clave(clave, filas[0]["clave_hash"])
 
 
 async def verificar_clave_super_admin(clave: str) -> bool:
@@ -74,10 +79,10 @@ async def verificar_clave_super_admin(clave: str) -> bool:
 # Registro
 # ============================================================================
 
-def _rostro_ya_registrado(supabase, embedding_frontal: list[float]) -> bool:
+def _rostro_ya_registrado(embedding_frontal: list[float]) -> bool:
     """Un mismo rostro no puede tener dos cuentas: se compara contra todos los rostros ya
     registrados (con la misma regla de distancia que usa el login)."""
-    filas = supabase.table("usuarios").select("rostro_embedding").execute().data
+    filas = ejecutar("SELECT rostro_embedding FROM usuarios")
     return any(es_misma_persona(distancia_minima(embedding_frontal, f["rostro_embedding"])) for f in filas)
 
 
@@ -90,19 +95,13 @@ def _crear_usuario_sync(
     rol: str,
     fotos_bytes: dict[str, bytes],
 ) -> dict:
-    supabase = obtener_supabase()
-
     hash_documento = hash_busqueda(numero_documento)
     hash_correo = hash_busqueda(correo)
 
-    ya_existe_documento = (
-        supabase.table("usuarios").select("id").eq("numero_documento_hash", hash_documento).limit(1).execute()
-    )
-    if ya_existe_documento.data:
+    if ejecutar("SELECT id FROM usuarios WHERE numero_documento_hash = %s LIMIT 1", (hash_documento,)):
         raise ErrorRegistro("Ya existe una cuenta registrada con ese número de documento")
 
-    ya_existe_correo = supabase.table("usuarios").select("id").eq("correo_hash", hash_correo).limit(1).execute()
-    if ya_existe_correo.data:
+    if ejecutar("SELECT id FROM usuarios WHERE correo_hash = %s LIMIT 1", (hash_correo,)):
         raise ErrorRegistro("Ya existe una cuenta registrada con ese correo electrónico")
 
     imagenes: dict[str, np.ndarray] = {}
@@ -130,39 +129,50 @@ def _crear_usuario_sync(
                 )
         embeddings[angulo] = embedding
 
-    if _rostro_ya_registrado(supabase, embeddings["frontal"]):
+    if _rostro_ya_registrado(embeddings["frontal"]):
         raise ErrorRegistro("Usuario ya está registrado: este rostro ya tiene una cuenta")
 
     usuario_id = str(uuid.uuid4())
+    carpeta_usuario = RUTA_FOTOS_EMPLEADOS / usuario_id
+    carpeta_usuario.mkdir(parents=True, exist_ok=True)
     rutas_fotos: dict[str, str] = {}
     for angulo, imagen in imagenes.items():
         ok_jpeg, buffer_jpeg = cv2.imencode(".jpg", imagen, [cv2.IMWRITE_JPEG_QUALITY, 90])
         if not ok_jpeg:
             raise ErrorRegistro(f"No se pudo procesar la foto {_NOMBRE_ANGULO[angulo]}")
-        # La foto del rostro es un dato biometrico sensible: se sube CIFRADA (Fernet), asi que
-        # quien tenga acceso al bucket de Storage solo ve bytes ilegibles, no la cara.
-        ruta = f"{usuario_id}/{angulo}.jpg.enc"
-        supabase.storage.from_(NOMBRE_BUCKET_FOTOS).upload(
-            ruta, cifrar_bytes(buffer_jpeg.tobytes()), {"content-type": "application/octet-stream", "upsert": "true"}
-        )
-        rutas_fotos[angulo] = ruta
+        # La foto del rostro es un dato biometrico sensible: se guarda CIFRADA (Fernet) en
+        # disco, asi que quien tenga acceso al sistema de archivos solo ve bytes ilegibles,
+        # no la cara. La ruta guardada en la base es siempre RELATIVA a `RUTA_FOTOS_EMPLEADOS`
+        # (nunca absoluta), igual criterio que `captura_path` en la tabla `alertas`.
+        ruta_relativa = f"{usuario_id}/{angulo}.jpg.enc"
+        (RUTA_FOTOS_EMPLEADOS / ruta_relativa).write_bytes(cifrar_bytes(buffer_jpeg.tobytes()))
+        rutas_fotos[angulo] = ruta_relativa
 
-    fila = {
-        "id": usuario_id,
-        "nombre": nombre,
-        "tipo_documento_id": tipo_documento_id,
-        "numero_documento_cifrado": cifrar(numero_documento),
-        "numero_documento_hash": hash_documento,
-        "correo_cifrado": cifrar(correo),
-        "correo_hash": hash_correo,
-        "clave_hash": hashear_clave(clave),
-        "rol": rol,
-        "foto_url": rutas_fotos["frontal"],
-        "fotos": rutas_fotos,
-        "rostro_embedding": embeddings,
-    }
-    respuesta = supabase.table("usuarios").insert(fila).execute()
-    return respuesta.data[0]
+    filas = ejecutar(
+        """
+        INSERT INTO usuarios (
+            id, nombre, tipo_documento_id, numero_documento_cifrado, numero_documento_hash,
+            correo_cifrado, correo_hash, clave_hash, rol, foto_url, fotos, rostro_embedding
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING *
+        """,
+        (
+            usuario_id,
+            nombre,
+            tipo_documento_id,
+            cifrar(numero_documento),
+            hash_documento,
+            cifrar(correo),
+            hash_correo,
+            hashear_clave(clave),
+            rol,
+            rutas_fotos["frontal"],
+            Json(rutas_fotos),
+            Json(embeddings),
+        ),
+    )
+    return filas[0]
 
 
 async def crear_usuario(
@@ -188,17 +198,13 @@ async def crear_usuario(
 # ============================================================================
 
 def _validar_credenciales_sync(correo: str, clave: str) -> dict | None:
-    fila = (
-        obtener_supabase()
-        .table("usuarios")
-        .select("id, nombre, clave_hash, rol")
-        .eq("correo_hash", hash_busqueda(correo))
-        .limit(1)
-        .execute()
+    filas = ejecutar(
+        "SELECT id, nombre, clave_hash, rol FROM usuarios WHERE correo_hash = %s LIMIT 1",
+        (hash_busqueda(correo),),
     )
-    if not fila.data:
+    if not filas:
         return None
-    usuario = fila.data[0]
+    usuario = filas[0]
     if not verificar_clave(clave, usuario["clave_hash"]):
         return None
     return {"id": usuario["id"], "nombre": usuario["nombre"], "rol": usuario["rol"]}
@@ -211,13 +217,11 @@ async def validar_credenciales(correo: str, clave: str) -> dict | None:
 
 
 def _verificar_rostro_login_sync(usuario_id: str, foto_bytes: bytes) -> tuple[bool, float]:
-    fila = (
-        obtener_supabase().table("usuarios").select("rostro_embedding").eq("id", usuario_id).limit(1).execute()
-    )
-    if not fila.data or not fila.data[0]["rostro_embedding"]:
+    filas = ejecutar("SELECT rostro_embedding FROM usuarios WHERE id = %s LIMIT 1", (usuario_id,))
+    if not filas or not filas[0]["rostro_embedding"]:
         return False, 1.0
     imagen = _decodificar_imagen(foto_bytes)
-    return verificar_rostro(fila.data[0]["rostro_embedding"], imagen)
+    return verificar_rostro(filas[0]["rostro_embedding"], imagen)
 
 
 async def verificar_rostro_login(usuario_id: str, foto_bytes: bytes) -> tuple[bool, float]:
@@ -227,10 +231,10 @@ async def verificar_rostro_login(usuario_id: str, foto_bytes: bytes) -> tuple[bo
 
 
 def _obtener_correo_descifrado_sync(usuario_id: str) -> str | None:
-    fila = obtener_supabase().table("usuarios").select("correo_cifrado").eq("id", usuario_id).limit(1).execute()
-    if not fila.data:
+    filas = ejecutar("SELECT correo_cifrado FROM usuarios WHERE id = %s LIMIT 1", (usuario_id,))
+    if not filas:
         return None
-    return descifrar(fila.data[0]["correo_cifrado"])
+    return descifrar(filas[0]["correo_cifrado"])
 
 
 async def obtener_correo_descifrado(usuario_id: str) -> str | None:
@@ -244,15 +248,11 @@ async def obtener_correo_descifrado(usuario_id: str) -> str | None:
 # ============================================================================
 
 def _buscar_usuario_por_correo_sync(correo: str) -> dict | None:
-    fila = (
-        obtener_supabase()
-        .table("usuarios")
-        .select("id, nombre, rol")
-        .eq("correo_hash", hash_busqueda(correo))
-        .limit(1)
-        .execute()
+    filas = ejecutar(
+        "SELECT id, nombre, rol FROM usuarios WHERE correo_hash = %s LIMIT 1",
+        (hash_busqueda(correo),),
     )
-    return fila.data[0] if fila.data else None
+    return filas[0] if filas else None
 
 
 async def buscar_usuario_por_correo(correo: str) -> dict | None:
@@ -261,8 +261,8 @@ async def buscar_usuario_por_correo(correo: str) -> dict | None:
 
 
 def _obtener_usuario_por_id_sync(usuario_id: str) -> dict | None:
-    fila = obtener_supabase().table("usuarios").select("id, nombre, rol").eq("id", usuario_id).limit(1).execute()
-    return fila.data[0] if fila.data else None
+    filas = ejecutar("SELECT id, nombre, rol FROM usuarios WHERE id = %s LIMIT 1", (usuario_id,))
+    return filas[0] if filas else None
 
 
 async def obtener_usuario_por_id(usuario_id: str) -> dict | None:
@@ -274,7 +274,7 @@ async def obtener_usuario_por_id(usuario_id: str) -> dict | None:
 
 
 def _cambiar_clave_sync(usuario_id: str, clave_nueva: str) -> None:
-    obtener_supabase().table("usuarios").update({"clave_hash": hashear_clave(clave_nueva)}).eq("id", usuario_id).execute()
+    ejecutar("UPDATE usuarios SET clave_hash = %s WHERE id = %s", (hashear_clave(clave_nueva), usuario_id))
 
 
 async def cambiar_clave(usuario_id: str, clave_nueva: str) -> None:

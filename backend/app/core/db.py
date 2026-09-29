@@ -1,25 +1,30 @@
-"""Persistencia en Supabase (Postgres) de todo lo que antes solo se transmitia en vivo por
+"""Persistencia en Postgres (Railway) de todo lo que antes solo se transmitia en vivo por
 WebSocket: alertas (con su veredicto), transcripciones y conexiones/desconexiones de
 estaciones -mas las opciones configurables de sede/modulo-.
 
-Antes esto vivia en un archivo SQLite local (`data/eventos.db`); se migro por completo a
-Supabase (ver `supabase_schema.sql` para el esquema). Las fotos de las alertas (`captura_path`)
-siguen guardandose en disco local en `RUTA_CAPTURAS` -son archivos binarios, no filas de base
-de datos, y no hacia falta moverlos para este cambio-.
+Antes esto vivia en un archivo SQLite local (`data/eventos.db`), despues en Supabase (ver
+`supabase_schema.sql`), y ahora en un Postgres nativo de Railway (ver
+`backend/postgres_schema.sql` para el esquema, ya identico al de Supabase salvo el bucket
+de Storage). Las fotos de las alertas (`captura_path`) siguen guardandose en disco local en
+`RUTA_CAPTURAS` -son archivos binarios, no filas de base de datos, y no hacia falta
+moverlos para este cambio-.
 
-Cada funcion publica de este modulo es `async` y corre la consulta real a Supabase en un
-thread-pool (ver `app.core.supabase_client.en_hilo`): supabase-py es sincrono (HTTP bloqueante),
-y el resto del backend es asyncio, asi que sin esto cada consulta congelaria el event loop
-completo -el mismo problema, ya resuelto antes, de correr codigo bloqueante directo en una
-corutina-.
+Cada funcion publica de este modulo es `async` y corre la consulta real a Postgres en un
+thread-pool (ver `app.core.db_client.en_hilo`): psycopg3, en su modo sincrono, bloquea el
+hilo mientras dura el round-trip, y el resto del backend es asyncio, asi que sin esto cada
+consulta congelaria el event loop completo -el mismo problema, ya resuelto antes, de correr
+codigo bloqueante directo en una corutina-.
+
+Todo el SQL de aqui va parametrizado (`%s` / placeholders de psycopg): ningun valor que
+venga de fuera (estacion_id, nombre, tipo, categoria, fechas, etc.) se concatena nunca
+directo en el string del query -eso es lo que evita la inyeccion SQL-. Los unicos lugares
+donde se arma el string con datos "propios" son nombres de tabla/columna fijos del codigo
+(nunca valores de usuario), lo cual es seguro.
 """
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.core.supabase_client import en_hilo, obtener_supabase
-
-logger = logging.getLogger(__name__)
+from app.core.db_client import ejecutar, ejecutar_muchos, en_hilo
 
 RUTA_CAPTURAS = Path(__file__).parent.parent.parent / "data" / "capturas"
 
@@ -53,16 +58,15 @@ def _sesion_en_rango(sesion: dict, desde: datetime | None, hasta: datetime | Non
 # ============================================================================
 
 def _registrar_alerta_sync(estacion_id: str, detalle: str, tipo: str, captura_path: str | None) -> int:
-    fila = {
-        "estacion_id": estacion_id,
-        "tipo": tipo,
-        "detalle": detalle,
-        "timestamp": _ahora(),
-        "veredicto": None,
-        "captura_path": captura_path,
-    }
-    respuesta = obtener_supabase().table("alertas").insert(fila).execute()
-    return respuesta.data[0]["id"]
+    filas = ejecutar(
+        """
+        INSERT INTO alertas (estacion_id, tipo, detalle, timestamp, veredicto, captura_path)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        (estacion_id, tipo, detalle, _ahora(), None, captura_path),
+    )
+    return filas[0]["id"]
 
 
 async def registrar_alerta(estacion_id: str, detalle: str, tipo: str = "postura", captura_path: str | None = None) -> int:
@@ -78,10 +82,10 @@ async def registrar_alerta(estacion_id: str, detalle: str, tipo: str = "postura"
 
 
 def _obtener_captura_path_sync(alerta_id: int) -> str | None:
-    respuesta = obtener_supabase().table("alertas").select("captura_path").eq("id", alerta_id).limit(1).execute()
-    if not respuesta.data:
+    filas = ejecutar("SELECT captura_path FROM alertas WHERE id = %s LIMIT 1", (alerta_id,))
+    if not filas:
         return None
-    return respuesta.data[0]["captura_path"]
+    return filas[0]["captura_path"]
 
 
 async def obtener_captura_path(alerta_id: int) -> str | None:
@@ -89,8 +93,11 @@ async def obtener_captura_path(alerta_id: int) -> str | None:
 
 
 def _actualizar_veredicto_sync(alerta_id: int, veredicto: str) -> bool:
-    respuesta = obtener_supabase().table("alertas").update({"veredicto": veredicto}).eq("id", alerta_id).execute()
-    return len(respuesta.data) > 0
+    filas = ejecutar(
+        "UPDATE alertas SET veredicto = %s WHERE id = %s RETURNING id",
+        (veredicto, alerta_id),
+    )
+    return len(filas) > 0
 
 
 async def actualizar_veredicto(alerta_id: int, veredicto: str) -> bool:
@@ -100,12 +107,12 @@ async def actualizar_veredicto(alerta_id: int, veredicto: str) -> bool:
 
 
 def _eliminar_alertas_por_tipo_sync(tipo: str) -> list[str]:
-    supabase = obtener_supabase()
-    filas = (
-        supabase.table("alertas").select("captura_path").eq("tipo", tipo).not_.is_("captura_path", "null").execute()
+    filas = ejecutar(
+        "SELECT captura_path FROM alertas WHERE tipo = %s AND captura_path IS NOT NULL",
+        (tipo,),
     )
-    rutas = [fila["captura_path"] for fila in filas.data]
-    supabase.table("alertas").delete().eq("tipo", tipo).execute()
+    rutas = [fila["captura_path"] for fila in filas]
+    ejecutar("DELETE FROM alertas WHERE tipo = %s", (tipo,))
     return rutas
 
 
@@ -117,12 +124,11 @@ async def eliminar_alertas_por_tipo(tipo: str) -> list[str]:
 
 
 def _eliminar_alerta_positiva_sync(alerta_id: int) -> tuple[bool, str | None]:
-    supabase = obtener_supabase()
-    fila = supabase.table("alertas").select("tipo, captura_path").eq("id", alerta_id).limit(1).execute().data
-    if not fila or fila[0]["tipo"] != "expresion_positiva":
+    filas = ejecutar("SELECT tipo, captura_path FROM alertas WHERE id = %s LIMIT 1", (alerta_id,))
+    if not filas or filas[0]["tipo"] != "expresion_positiva":
         return False, None
-    supabase.table("alertas").delete().eq("id", alerta_id).execute()
-    return True, fila[0]["captura_path"]
+    ejecutar("DELETE FROM alertas WHERE id = %s", (alerta_id,))
+    return True, filas[0]["captura_path"]
 
 
 async def eliminar_alerta_positiva(alerta_id: int) -> tuple[bool, str | None]:
@@ -137,9 +143,10 @@ async def eliminar_alerta_positiva(alerta_id: int) -> tuple[bool, str | None]:
 # ============================================================================
 
 def _registrar_transcripcion_sync(estacion_id: str, texto: str) -> None:
-    obtener_supabase().table("transcripciones").insert(
-        {"estacion_id": estacion_id, "texto": texto, "timestamp": _ahora()}
-    ).execute()
+    ejecutar(
+        "INSERT INTO transcripciones (estacion_id, texto, timestamp) VALUES (%s, %s, %s)",
+        (estacion_id, texto, _ahora()),
+    )
 
 
 async def registrar_transcripcion(estacion_id: str, texto: str) -> None:
@@ -151,9 +158,10 @@ async def registrar_transcripcion(estacion_id: str, texto: str) -> None:
 # ============================================================================
 
 def _registrar_emocion_sync(estacion_id: str, emocion: str, probabilidad: float) -> None:
-    obtener_supabase().table("emociones").insert(
-        {"estacion_id": estacion_id, "emocion": emocion, "probabilidad": round(float(probabilidad), 3), "timestamp": _ahora()}
-    ).execute()
+    ejecutar(
+        "INSERT INTO emociones (estacion_id, emocion, probabilidad, timestamp) VALUES (%s, %s, %s, %s)",
+        (estacion_id, emocion, round(float(probabilidad), 3), _ahora()),
+    )
 
 
 async def registrar_emocion(estacion_id: str, emocion: str, probabilidad: float) -> None:
@@ -173,17 +181,14 @@ def _registrar_evento_conexion_sync(
     acepto_habeas_data: bool | None,
 ) -> str:
     momento = _ahora()
-    obtener_supabase().table("eventos_conexion").insert(
-        {
-            "estacion_id": estacion_id,
-            "empleado_nombre": empleado_nombre,
-            "tipo": tipo,
-            "timestamp": momento,
-            "sede": sede,
-            "modulo": modulo,
-            "acepto_habeas_data": acepto_habeas_data,
-        }
-    ).execute()
+    ejecutar(
+        """
+        INSERT INTO eventos_conexion
+            (estacion_id, empleado_nombre, tipo, timestamp, sede, modulo, acepto_habeas_data)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """,
+        (estacion_id, empleado_nombre, tipo, momento, sede, modulo, acepto_habeas_data),
+    )
     return momento
 
 
@@ -209,46 +214,27 @@ async def registrar_evento_conexion(
 # ============================================================================
 
 TIPOS_PAUSA = ("almuerzo", "break")
-_MENSAJE_SIN_TABLA_PAUSAS = (
-    "Falta la tabla 'pausas' en la base de datos: ejecuta backend/supabase_version_definitiva.sql "
-    "en el SQL Editor de Supabase"
-)
 
 
 class ErrorPausas(Exception):
-    """La tabla `pausas` todavia no existe (no se ha corrido el script SQL actualizado)."""
-
-
-def _es_tabla_faltante(err: Exception) -> bool:
-    return getattr(err, "code", None) == "PGRST205" or "PGRST205" in str(err)
-
-
-def _leer_pausas(consulta) -> list[dict]:
-    """Lee pausas sin romper el historial si la tabla aun no existe (sale como 'sin pausas')."""
-    try:
-        return consulta().execute().data
-    except Exception as err:
-        if _es_tabla_faltante(err):
-            logger.warning(_MENSAJE_SIN_TABLA_PAUSAS)
-            return []
-        raise
+    """Con Supabase, la tabla `pausas` podia faltar en instalaciones viejas que no habian
+    corrido el script SQL actualizado (PostgREST devolvia el error 'PGRST205'). Con Postgres
+    nativo eso ya no puede pasar: `postgres_schema.sql` se aplica completo ANTES del primer
+    deploy, asi que esta excepcion nunca se lanza -queda solo para que `app.api.estaciones`
+    (que la importa y la captura) siga compilando sin tocar ese archivo en esta fase."""
 
 
 def _iniciar_pausa_sync(estacion_id: str, empleado_nombre: str, sesion_inicio: str, tipo: str) -> dict:
-    fila = {
-        "estacion_id": estacion_id,
-        "empleado_nombre": empleado_nombre,
-        "sesion_inicio": sesion_inicio,
-        "tipo": tipo,
-        "inicio": _ahora(),
-    }
-    try:
-        creada = obtener_supabase().table("pausas").insert(fila).execute().data[0]
-    except Exception as err:
-        if _es_tabla_faltante(err):
-            raise ErrorPausas(_MENSAJE_SIN_TABLA_PAUSAS) from err
-        raise
-    return {"id": creada["id"], "tipo": tipo, "inicio": fila["inicio"]}
+    inicio = _ahora()
+    filas = ejecutar(
+        """
+        INSERT INTO pausas (estacion_id, empleado_nombre, sesion_inicio, tipo, inicio)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        (estacion_id, empleado_nombre, sesion_inicio, tipo, inicio),
+    )
+    return {"id": filas[0]["id"], "tipo": tipo, "inicio": inicio}
 
 
 async def iniciar_pausa(estacion_id: str, empleado_nombre: str, sesion_inicio: str, tipo: str) -> dict:
@@ -256,7 +242,10 @@ async def iniciar_pausa(estacion_id: str, empleado_nombre: str, sesion_inicio: s
 
 
 def _finalizar_pausas_abiertas_sync(estacion_id: str) -> None:
-    _leer_pausas(lambda: obtener_supabase().table("pausas").update({"fin": _ahora()}).eq("estacion_id", estacion_id).is_("fin", "null"))
+    ejecutar(
+        "UPDATE pausas SET fin = %s WHERE estacion_id = %s AND fin IS NULL",
+        (_ahora(), estacion_id),
+    )
 
 
 async def finalizar_pausas_abiertas(estacion_id: str) -> None:
@@ -293,16 +282,9 @@ def _totales_pausas(pausas: list[dict]) -> dict:
 # ============================================================================
 
 def _obtener_opciones_sync() -> dict[str, list[str]]:
-    filas = (
-        obtener_supabase()
-        .table("opciones_configurables")
-        .select("tipo, valor, orden")
-        .order("tipo")
-        .order("orden")
-        .execute()
-    )
+    filas = ejecutar("SELECT tipo, valor, orden FROM opciones_configurables ORDER BY tipo, orden")
     resultado: dict[str, list[str]] = {"sede": [], "modulo": []}
-    for fila in filas.data:
+    for fila in filas:
         resultado.setdefault(fila["tipo"], []).append(fila["valor"])
     return resultado
 
@@ -323,35 +305,37 @@ class ErrorOpcion(Exception):
 
 
 def _listar_opciones_detalle_sync() -> list[dict]:
-    return (
-        obtener_supabase()
-        .table("opciones_configurables")
-        .select("id, tipo, valor, orden")
-        .order("tipo")
-        .order("orden")
-        .execute()
-    ).data
+    return ejecutar("SELECT id, tipo, valor, orden FROM opciones_configurables ORDER BY tipo, orden")
 
 
 async def listar_opciones_detalle() -> list[dict]:
     return await en_hilo(_listar_opciones_detalle_sync)
 
 
-def _existe_valor(supabase, tipo: str, valor: str, excepto_id: int | None = None) -> bool:
-    filas = supabase.table("opciones_configurables").select("id, valor").eq("tipo", tipo).execute().data
+def _existe_valor(tipo: str, valor: str, excepto_id: int | None = None) -> bool:
+    filas = ejecutar("SELECT id, valor FROM opciones_configurables WHERE tipo = %s", (tipo,))
     return any(f["valor"].strip().lower() == valor.lower() and f["id"] != excepto_id for f in filas)
 
 
 def _crear_opcion_sync(tipo: str, valor: str) -> dict:
-    supabase = obtener_supabase()
     valor = " ".join(valor.split())
     if not valor:
         raise ErrorOpcion("El nombre de la opción no puede estar vacío")
-    if _existe_valor(supabase, tipo, valor):
+    if _existe_valor(tipo, valor):
         raise ErrorOpcion(f'Ya existe la opción "{valor}"')
-    filas = supabase.table("opciones_configurables").select("orden").eq("tipo", tipo).execute().data
-    orden = max((f["orden"] for f in filas), default=-1) + 1
-    return supabase.table("opciones_configurables").insert({"tipo": tipo, "valor": valor, "orden": orden}).execute().data[0]
+    siguiente_orden = ejecutar(
+        "SELECT COALESCE(MAX(orden), -1) + 1 AS siguiente FROM opciones_configurables WHERE tipo = %s",
+        (tipo,),
+    )[0]["siguiente"]
+    filas = ejecutar(
+        """
+        INSERT INTO opciones_configurables (tipo, valor, orden)
+        VALUES (%s, %s, %s)
+        RETURNING id, tipo, valor, orden
+        """,
+        (tipo, valor, siguiente_orden),
+    )
+    return filas[0]
 
 
 async def crear_opcion(tipo: str, valor: str) -> dict:
@@ -359,16 +343,19 @@ async def crear_opcion(tipo: str, valor: str) -> dict:
 
 
 def _editar_opcion_sync(opcion_id: int, valor: str) -> dict:
-    supabase = obtener_supabase()
     valor = " ".join(valor.split())
     if not valor:
         raise ErrorOpcion("El nombre de la opción no puede estar vacío")
-    actual = supabase.table("opciones_configurables").select("id, tipo").eq("id", opcion_id).limit(1).execute().data
+    actual = ejecutar("SELECT id, tipo FROM opciones_configurables WHERE id = %s", (opcion_id,))
     if not actual:
         raise LookupError("La opción no existe")
-    if _existe_valor(supabase, actual[0]["tipo"], valor, excepto_id=opcion_id):
+    if _existe_valor(actual[0]["tipo"], valor, excepto_id=opcion_id):
         raise ErrorOpcion(f'Ya existe la opción "{valor}"')
-    return supabase.table("opciones_configurables").update({"valor": valor}).eq("id", opcion_id).execute().data[0]
+    filas = ejecutar(
+        "UPDATE opciones_configurables SET valor = %s WHERE id = %s RETURNING id, tipo, valor, orden",
+        (valor, opcion_id),
+    )
+    return filas[0]
 
 
 async def editar_opcion(opcion_id: int, valor: str) -> dict:
@@ -376,8 +363,8 @@ async def editar_opcion(opcion_id: int, valor: str) -> dict:
 
 
 def _eliminar_opcion_sync(opcion_id: int) -> bool:
-    respuesta = obtener_supabase().table("opciones_configurables").delete().eq("id", opcion_id).execute()
-    return len(respuesta.data) > 0
+    filas = ejecutar("DELETE FROM opciones_configurables WHERE id = %s RETURNING id", (opcion_id,))
+    return len(filas) > 0
 
 
 async def eliminar_opcion(opcion_id: int) -> bool:
@@ -389,9 +376,7 @@ async def eliminar_opcion(opcion_id: int) -> bool:
 # ============================================================================
 
 def _obtener_diccionario_lenguaje_sync() -> list[dict]:
-    return (
-        obtener_supabase().table("lenguaje_inapropiado").select("termino, categoria").order("termino").execute()
-    ).data
+    return ejecutar("SELECT termino, categoria FROM lenguaje_inapropiado ORDER BY termino")
 
 
 async def obtener_diccionario_lenguaje() -> list[dict]:
@@ -399,17 +384,23 @@ async def obtener_diccionario_lenguaje() -> list[dict]:
 
 
 def _guardar_diccionario_lenguaje_sync(categoria: str, terminos: list[str]) -> None:
-    supabase = obtener_supabase()
-    supabase.table("lenguaje_inapropiado").delete().eq("categoria", categoria).execute()
+    ejecutar("DELETE FROM lenguaje_inapropiado WHERE categoria = %s", (categoria,))
     filas, vistos = [], set()
     for termino in terminos:
         limpio = " ".join(termino.strip().lower().split())
         if limpio and limpio not in vistos:
             vistos.add(limpio)
-            filas.append({"termino": limpio, "categoria": categoria})
+            filas.append((limpio, categoria))
     if filas:
         # upsert: si el termino ya existia en OTRA categoria, se mueve a esta.
-        supabase.table("lenguaje_inapropiado").upsert(filas, on_conflict="termino").execute()
+        ejecutar_muchos(
+            """
+            INSERT INTO lenguaje_inapropiado (termino, categoria)
+            VALUES (%s, %s)
+            ON CONFLICT (termino) DO UPDATE SET categoria = EXCLUDED.categoria
+            """,
+            filas,
+        )
 
 
 async def guardar_diccionario_lenguaje(categoria: str, terminos: list[str]) -> None:
@@ -464,14 +455,10 @@ def _calcular_sesiones(filas_eventos: list[dict]) -> list[dict]:
 
 
 def _obtener_ultima_sesion_sync(estacion_id: str) -> dict | None:
-    filas = (
-        obtener_supabase()
-        .table("eventos_conexion")
-        .select("tipo, timestamp")
-        .eq("estacion_id", estacion_id)
-        .order("timestamp")
-        .execute()
-    ).data
+    filas = ejecutar(
+        "SELECT tipo, timestamp FROM eventos_conexion WHERE estacion_id = %s ORDER BY timestamp",
+        (estacion_id,),
+    )
     conexiones = [f for f in filas if f["tipo"] == "conexion"]
     if not conexiones:
         return None
@@ -483,13 +470,9 @@ def _obtener_ultima_sesion_sync(estacion_id: str) -> dict | None:
 
 
 def _historial_conexiones_sync(nombre: str) -> list[dict]:
-    filas = (
-        obtener_supabase()
-        .table("eventos_conexion")
-        .select("estacion_id, empleado_nombre, tipo, timestamp, sede, modulo")
-        .order("timestamp")
-        .execute()
-    ).data
+    filas = ejecutar(
+        "SELECT estacion_id, empleado_nombre, tipo, timestamp, sede, modulo FROM eventos_conexion ORDER BY timestamp"
+    )
     # El fin de una sesion solo es real si le siguio un evento; si es la ultima fila de su
     # estacion, sigue abierta ("En curso").
     ultimos_por_estacion: dict[str, str] = {}
@@ -500,8 +483,9 @@ def _historial_conexiones_sync(nombre: str) -> list[dict]:
     for s in sesiones:
         por_estacion.setdefault(s["estacion_id"], []).append(s)
     if por_estacion:
-        pausas = _leer_pausas(
-            lambda: obtener_supabase().table("pausas").select("estacion_id, tipo, inicio, fin").in_("estacion_id", list(por_estacion))
+        pausas = ejecutar(
+            "SELECT estacion_id, tipo, inicio, fin FROM pausas WHERE estacion_id = ANY(%s)",
+            (list(por_estacion),),
         )
         _repartir_pausas(por_estacion, pausas)
     resultado = [
@@ -536,31 +520,35 @@ async def obtener_ultima_sesion(estacion_id: str) -> dict | None:
 # ============================================================================
 
 def _listar_eventos_recientes_sync(limite_por_tipo: int) -> list[dict]:
-    supabase = obtener_supabase()
-    filas_alertas = (
-        supabase.table("alertas")
-        .select("id, estacion_id, tipo, detalle, timestamp, veredicto, captura_path")
-        .order("timestamp", desc=True)
-        .limit(limite_por_tipo)
-        .execute()
-    ).data
-    filas_transcripciones = (
-        supabase.table("transcripciones")
-        .select("estacion_id, texto, timestamp")
-        .order("timestamp", desc=True)
-        .limit(limite_por_tipo)
-        .execute()
-    ).data
+    filas_alertas = ejecutar(
+        """
+        SELECT id, estacion_id, tipo, detalle, timestamp, veredicto, captura_path
+        FROM alertas
+        ORDER BY timestamp DESC
+        LIMIT %s
+        """,
+        (limite_por_tipo,),
+    )
+    filas_transcripciones = ejecutar(
+        """
+        SELECT estacion_id, texto, timestamp
+        FROM transcripciones
+        ORDER BY timestamp DESC
+        LIMIT %s
+        """,
+        (limite_por_tipo,),
+    )
     # Nombre de empleado mas reciente por estacion: sin esto, una estacion que ya se desconecto
     # (o cuyo evento de conexion salio del panel en vivo antes de navegar a otra pagina)
     # mostraba el UUID crudo de la estacion en vez del nombre de la persona.
-    filas_conexion = (
-        supabase.table("eventos_conexion")
-        .select("estacion_id, empleado_nombre, timestamp")
-        .eq("tipo", "conexion")
-        .order("timestamp")
-        .execute()
-    ).data
+    filas_conexion = ejecutar(
+        """
+        SELECT estacion_id, empleado_nombre, timestamp
+        FROM eventos_conexion
+        WHERE tipo = 'conexion'
+        ORDER BY timestamp
+        """
+    )
     nombres_por_estacion: dict[str, str] = {}
     for fila in filas_conexion:  # ascendente: el ultimo que se procesa es el mas reciente
         nombres_por_estacion[fila["estacion_id"]] = fila["empleado_nombre"]
@@ -605,30 +593,19 @@ async def listar_eventos_recientes(limite_por_tipo: int = 300) -> list[dict]:
 # Historial general: una fila por sesion de monitoreo (todos los empleados)
 # ============================================================================
 
-_TAMANO_PAGINA = 1000  # Supabase devuelve como maximo 1000 filas por consulta
+def _leer_tabla_ordenada(tabla: str, columnas: str) -> list[dict]:
+    """Lee la tabla completa ordenada por timestamp. `tabla`/`columnas` son SIEMPRE
+    constantes fijas del codigo (nunca valores de usuario) en cada uno de los llamados de
+    este archivo, asi que armar el SQL con f-string aqui es seguro -muy distinto de
+    interpolar un valor de fila, que siempre va parametrizado-.
 
-
-def _todas_las_filas(tabla: str, columnas: str) -> list[dict]:
-    """Lee la tabla completa en paginas (sin esto, Supabase corta en las primeras 1000 filas)."""
-    supabase = obtener_supabase()
-    filas: list[dict] = []
-    inicio = 0
-    while True:
-        pagina = (
-            supabase.table(tabla)
-            .select(columnas)
-            .order("timestamp")
-            .range(inicio, inicio + _TAMANO_PAGINA - 1)
-            .execute()
-        ).data
-        filas.extend(pagina)
-        if len(pagina) < _TAMANO_PAGINA:
-            return filas
-        inicio += _TAMANO_PAGINA
+    Con SQL crudo no existe el limite de 1000 filas por consulta que tenia PostgREST, asi
+    que un solo SELECT alcanza y ya no hace falta paginar (antes: `_todas_las_filas`)."""
+    return ejecutar(f"SELECT {columnas} FROM {tabla} ORDER BY timestamp")
 
 
 def _listar_sesiones_historial_sync(desde: datetime | None, hasta: datetime | None, detalle: bool) -> list[dict]:
-    filas_eventos = _todas_las_filas("eventos_conexion", "estacion_id, empleado_nombre, tipo, timestamp, sede, modulo")
+    filas_eventos = _leer_tabla_ordenada("eventos_conexion", "estacion_id, empleado_nombre, tipo, timestamp, sede, modulo")
     ultimos_por_estacion: dict[str, str] = {}
     for fila in filas_eventos:
         ultimos_por_estacion[fila["estacion_id"]] = fila["timestamp"]
@@ -648,10 +625,10 @@ def _listar_sesiones_historial_sync(desde: datetime | None, hasta: datetime | No
                 return sesion
         return None
 
-    pausas = _leer_pausas(lambda: obtener_supabase().table("pausas").select("estacion_id, tipo, inicio, fin").order("inicio"))
+    pausas = ejecutar("SELECT estacion_id, tipo, inicio, fin FROM pausas ORDER BY inicio")
     _repartir_pausas(por_estacion, pausas)
 
-    for fila in _todas_las_filas("alertas", "estacion_id, tipo, detalle, timestamp, veredicto, captura_path"):
+    for fila in _leer_tabla_ordenada("alertas", "estacion_id, tipo, detalle, timestamp, veredicto, captura_path"):
         sesion = _sesion_de(fila["estacion_id"], fila["timestamp"])
         if sesion is not None:
             alerta = {
@@ -664,7 +641,7 @@ def _listar_sesiones_historial_sync(desde: datetime | None, hasta: datetime | No
                 alerta["captura_path"] = fila["captura_path"]
             sesion["alertas"].append(alerta)
     columnas_transcripcion = "estacion_id, timestamp, texto" if detalle else "estacion_id, timestamp"
-    for fila in _todas_las_filas("transcripciones", columnas_transcripcion):
+    for fila in _leer_tabla_ordenada("transcripciones", columnas_transcripcion):
         sesion = _sesion_de(fila["estacion_id"], fila["timestamp"])
         if sesion is not None:
             sesion["transcripciones"] += 1
@@ -725,17 +702,13 @@ async def listar_sesiones_historial(
 # ============================================================================
 
 def _listar_trabajadores_para_informe_sync(desde: datetime | None, hasta: datetime | None) -> list[dict]:
-    supabase = obtener_supabase()
-    filas_eventos = (
-        supabase.table("eventos_conexion")
-        .select("estacion_id, empleado_nombre, tipo, timestamp, sede, modulo")
-        .order("timestamp")
-        .execute()
-    ).data
+    filas_eventos = ejecutar(
+        "SELECT estacion_id, empleado_nombre, tipo, timestamp, sede, modulo FROM eventos_conexion ORDER BY timestamp"
+    )
     sesiones = _calcular_sesiones(filas_eventos)
 
-    alertas = supabase.table("alertas").select("estacion_id, tipo, timestamp").execute().data
-    transcripciones = supabase.table("transcripciones").select("estacion_id, timestamp").execute().data
+    alertas = ejecutar("SELECT estacion_id, tipo, timestamp FROM alertas")
+    transcripciones = ejecutar("SELECT estacion_id, timestamp FROM transcripciones")
 
     trabajadores: dict[str, dict] = {}
     for sesion in sesiones:
@@ -832,13 +805,9 @@ async def listar_trabajadores_para_informe(desde: datetime | None = None, hasta:
 
 
 def _obtener_datos_reporte_trabajador_sync(nombre: str, desde: datetime | None, hasta: datetime | None) -> dict:
-    supabase = obtener_supabase()
-    filas_eventos = (
-        supabase.table("eventos_conexion")
-        .select("estacion_id, empleado_nombre, tipo, timestamp, sede, modulo")
-        .order("timestamp")
-        .execute()
-    ).data
+    filas_eventos = ejecutar(
+        "SELECT estacion_id, empleado_nombre, tipo, timestamp, sede, modulo FROM eventos_conexion ORDER BY timestamp"
+    )
     sesiones_trabajador = [
         s for s in _calcular_sesiones(filas_eventos) if s["nombre"] == nombre and _sesion_en_rango(s, desde, hasta)
     ]
@@ -848,26 +817,28 @@ def _obtener_datos_reporte_trabajador_sync(nombre: str, desde: datetime | None, 
     transcripciones: list[dict] = []
     emociones: list[dict] = []
     if estaciones:
-        emociones = (
-            supabase.table("emociones")
-            .select("estacion_id, emocion, timestamp")
-            .in_("estacion_id", estaciones)
-            .execute()
-        ).data
-        alertas = (
-            supabase.table("alertas")
-            .select("estacion_id, tipo, detalle, timestamp, veredicto, captura_path")
-            .in_("estacion_id", estaciones)
-            .order("timestamp")
-            .execute()
-        ).data
-        transcripciones = (
-            supabase.table("transcripciones")
-            .select("estacion_id, texto, timestamp")
-            .in_("estacion_id", estaciones)
-            .order("timestamp")
-            .execute()
-        ).data
+        emociones = ejecutar(
+            "SELECT estacion_id, emocion, timestamp FROM emociones WHERE estacion_id = ANY(%s)",
+            (estaciones,),
+        )
+        alertas = ejecutar(
+            """
+            SELECT estacion_id, tipo, detalle, timestamp, veredicto, captura_path
+            FROM alertas
+            WHERE estacion_id = ANY(%s)
+            ORDER BY timestamp
+            """,
+            (estaciones,),
+        )
+        transcripciones = ejecutar(
+            """
+            SELECT estacion_id, texto, timestamp
+            FROM transcripciones
+            WHERE estacion_id = ANY(%s)
+            ORDER BY timestamp
+            """,
+            (estaciones,),
+        )
 
     def _dentro_de_alguna_sesion(estacion_id: str, timestamp: str) -> bool:
         if not _en_rango(timestamp, desde, hasta):

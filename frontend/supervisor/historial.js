@@ -470,7 +470,7 @@ async function detalleError(resp) {
   return typeof cuerpo.detail === "string" ? cuerpo.detail : "HTTP " + resp.status;
 }
 
-// --- Diccionario de lenguaje inapropiado (tabla `lenguaje_inapropiado` en Supabase) ---
+// --- Diccionario de lenguaje inapropiado (tabla `lenguaje_inapropiado` en Postgres) ---
 const CAMPOS_LENGUAJE = {
   groseria_fuerte: document.getElementById("lenguajeFuerte"),
   groseria_leve: document.getElementById("lenguajeLeve"),
