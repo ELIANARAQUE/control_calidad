@@ -260,6 +260,19 @@ async def buscar_usuario_por_correo(correo: str) -> dict | None:
     return await en_hilo(_buscar_usuario_por_correo_sync, correo)
 
 
+def _obtener_usuario_por_id_sync(usuario_id: str) -> dict | None:
+    fila = obtener_supabase().table("usuarios").select("id, nombre, rol").eq("id", usuario_id).limit(1).execute()
+    return fila.data[0] if fila.data else None
+
+
+async def obtener_usuario_por_id(usuario_id: str) -> dict | None:
+    """`{id, nombre, rol}` de la cuenta por su id, o None si no existe. Se usa para resolver el
+    nombre/rol REALES al emitir el token de sesion en el paso 2 del login -nunca se confia en lo
+    que mande el formulario del cliente, porque un empleado podria mandar rol='admin' y escalar
+    privilegios aunque su propia verificacion facial sea legitima."""
+    return await en_hilo(_obtener_usuario_por_id_sync, usuario_id)
+
+
 def _cambiar_clave_sync(usuario_id: str, clave_nueva: str) -> None:
     obtener_supabase().table("usuarios").update({"clave_hash": hashear_clave(clave_nueva)}).eq("id", usuario_id).execute()
 

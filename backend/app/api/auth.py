@@ -15,6 +15,7 @@ from app.core.cuentas import (
     cambiar_clave,
     crear_usuario,
     obtener_tipos_documento,
+    obtener_usuario_por_id,
     validar_credenciales,
     verificar_clave_super_admin,
     verificar_rostro_login,
@@ -124,17 +125,27 @@ async def login(cuerpo: Credenciales) -> dict:
 
 
 @router.post("/auth/verificar-rostro")
-async def verificar_rostro(usuario_id: str = Form(...), nombre: str = Form(...), rol: str = Form(...), foto: UploadFile = File(...)) -> dict:
+async def verificar_rostro(usuario_id: str = Form(...), foto: UploadFile = File(...)) -> dict:
     """Paso 2 del login: la foto tomada en vivo debe coincidir con el rostro guardado en el
-    registro de esa cuenta. Solo aqui se emite el token de sesion real."""
+    registro de esa cuenta. Solo aqui se emite el token de sesion real.
+
+    El `nombre` y el `rol` del token se resuelven SIEMPRE desde la base de datos a partir de
+    `usuario_id`; nunca se aceptan como campos del formulario, porque el cliente podria mandar
+    `rol=admin` y escalar privilegios aunque la verificacion facial (que solo confirma que la
+    cara coincide con la de ESE usuario_id) sea legitima."""
     foto_bytes = await foto.read()
     if not foto_bytes:
         raise HTTPException(status_code=400, detail="No se recibió ninguna foto para verificar")
+
+    usuario = await obtener_usuario_por_id(usuario_id)
+    if usuario is None:
+        raise HTTPException(status_code=404, detail="No existe ninguna cuenta con ese usuario_id")
 
     coincide, distancia = await verificar_rostro_login(usuario_id, foto_bytes)
     if not coincide:
         raise HTTPException(status_code=401, detail="El rostro no coincide con el de la cuenta registrada")
 
+    nombre, rol = usuario["nombre"], usuario["rol"]
     token = crear_token(usuario_id, nombre, rol)
     destino = "/empleado/" if rol == "empleado" else "/supervisor/"
     respuesta = JSONResponse({"token": token, "rol": rol, "nombre": nombre, "destino": destino})

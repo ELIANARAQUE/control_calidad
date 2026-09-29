@@ -1,0 +1,39 @@
+# Entornos virtuales y caches de Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Control de versiones y editor
+.git/
+.gitignore
+.claude/
+.vscode/
+.idea/
+
+# Secretos y datos locales (nunca deben entrar a la imagen)
+.env
+backend/.env
+backend/data/
+
+# Logs y artefactos locales
+server.log
+*.log
+
+# Cliente de escritorio (no es parte del servidor web)
+desktop_client/build/
+desktop_client/dist/
+desktop_client/*.spec
+desktop_client/estacion_id.txt
+
+# Carpeta de referencia sin relacion con el backend/frontend servidos
+Deteccion de Rostro/
+
+# Documentacion (no hace falta en la imagen)
+README.md
+DEPLOY_RAILWAY.md
+*.md
+
+# node_modules por si algun tooling de frontend lo genera localmente
+node_modules/

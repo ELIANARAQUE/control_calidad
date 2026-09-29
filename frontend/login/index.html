@@ -194,9 +194,9 @@ document.getElementById("btnCapturarRostro").addEventListener("click", async () 
   canvas.toBlob(async (blob) => {
     const form = new FormData();
     form.append("usuario_id", datosSesionPendiente.usuario_id);
-    form.append("nombre", datosSesionPendiente.nombre);
-    form.append("rol", datosSesionPendiente.rol);
     form.append("foto", blob, "rostro.jpg");
+    // nombre/rol ya NO se mandan: el backend los resuelve desde la BD con usuario_id, para
+    // que el cliente no pueda influir en el rol que termina llevando el token.
 
     const botonVerificar = document.getElementById("btnCapturarRostro");
     botonVerificar.disabled = true;
